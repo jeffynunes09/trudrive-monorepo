@@ -1,7 +1,13 @@
 {
   "permissions": {
     "allow": [
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(pnpm:*)",
+      "Bash(docker-compose up:*)",
+      "Bash(docker-compose ps:*)",
+      "Bash(curl:*)",
+      "Bash(npm install:*)",
+      "Bash(npx expo:*)"
     ]
   }
 }
