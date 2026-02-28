@@ -5,4 +5,5 @@
 
 export * from './ride.controller'
 export * from './ride.service'
-export * from './ride.repository'
+export * from './ride.schema'
+export { default as rideRoutes } from './ride.routes'

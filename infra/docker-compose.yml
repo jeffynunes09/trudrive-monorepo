@@ -15,7 +15,7 @@ services:
       - redis
     restart: always
     networks:
-      - trudrive-net
+      - jndrive-net
 
   redis:
     image: redis:7-alpine
@@ -26,10 +26,10 @@ services:
       - redis_data:/data
     restart: always
     networks:
-      - trudrive-net
+      - jndrive-net
 
 networks:
-  trudrive-net:
+  jndrive-net:
     driver: bridge
 
 volumes:

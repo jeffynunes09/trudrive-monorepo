@@ -29,7 +29,7 @@ RUN pnpm --filter backend build
 # Production stage
 FROM node:20-alpine AS final
 
-RUN addgroup -S trudrive && adduser -S trudrive -G trudrive
+RUN addgroup -S jndrive && adduser -S jndrive -G jndrive
 
 WORKDIR /app
 
@@ -43,7 +43,7 @@ COPY --from=builder /app/apps/backend/package.json apps/backend/package.json
 
 RUN pnpm install --prod --frozen-lockfile
 
-USER trudrive
+USER jndrive
 
 EXPOSE 3000
 

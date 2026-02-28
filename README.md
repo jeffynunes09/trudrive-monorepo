@@ -1,4 +1,4 @@
-# TruDrive Monorepo
+# jndrive Monorepo
 
 Ride-sharing platform — Modular Monolith with event-driven architecture.
 

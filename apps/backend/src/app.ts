@@ -13,18 +13,12 @@ app.use(cors())
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }))
 
-// Routes
-// import userRoutes from './modules/user/user.routes'
-// import rideRoutes from './modules/ride/ride.routes'
+// HTTP routes intentionally removed — all communication via WebSocket (socket.io)
+// Exception: REST kept for payment webhooks and file uploads when needed
 // import paymentRoutes from './modules/payment/payment.routes'
 // import uploadRoutes from './modules/upload/upload.routes'
-// import notificationRoutes from './modules/notification/notification.routes'
-
-// app.use('/api/users', userRoutes)
-// app.use('/api/rides', rideRoutes)
 // app.use('/api/payments', paymentRoutes)
 // app.use('/api/uploads', uploadRoutes)
-// app.use('/api/notifications', notificationRoutes)
 
 app.get('/health', (_, res) => res.json({ status: 'ok' }))
 

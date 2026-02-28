@@ -2,6 +2,9 @@ import { Server, Socket } from 'socket.io'
 import { createAdapter } from '@socket.io/redis-adapter'
 import { createClient } from 'redis'
 import { Server as HttpServer } from 'http'
+import { registerUserHandlers } from './handlers/user.handler'
+import { registerRideHandlers } from './handlers/ride.handler'
+import { registerDriverHandlers } from './handlers/driver.handler'
 
 let io: Server
 
@@ -14,6 +17,18 @@ export async function initWebSocket(httpServer: HttpServer): Promise<Server> {
   io = new Server(httpServer, {
     cors: { origin: '*' },
     adapter: createAdapter(pubClient, subClient),
+  })
+
+  io.on('connection', (socket: Socket) => {
+    console.log(`[WS] Connected: ${socket.id}`)
+
+    registerUserHandlers(socket)
+    registerRideHandlers(socket)
+    registerDriverHandlers(socket)
+
+    socket.on('disconnect', () => {
+      console.log(`[WS] Disconnected: ${socket.id}`)
+    })
   })
 
   return io
