@@ -1,0 +1,38 @@
+{
+  "name": "backend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "nodemon --exec ts-node src/app.ts",
+    "build": "tsc",
+    "start": "node dist/app.js",
+    "worker:notify": "ts-node src/workers/notifyDrivers.worker.ts",
+    "worker:payment": "ts-node src/workers/payment.worker.ts"
+  },
+  "dependencies": {
+    "express": "^4.21.1",
+    "socket.io": "^4.8.1",
+    "@socket.io/redis-adapter": "^8.2.1",
+    "mongoose": "^8.0.0",
+    "redis": "^4.7.0",
+    "bullmq": "^5.0.0",
+    "@aws-sdk/client-s3": "^3.700.0",
+    "@aws-sdk/s3-request-presigner": "^3.700.0",
+    "jsonwebtoken": "^9.0.1",
+    "axios": "^1.4.0",
+    "dotenv": "^16.0.0",
+    "cors": "^2.8.5",
+    "shared-types": "workspace:*",
+    "shared-events": "workspace:*",
+    "shared-config": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^5.8.2",
+    "nodemon": "^2.0.22",
+    "ts-node": "^10.9.0",
+    "@types/express": "^4.17.0",
+    "@types/node": "^20.0.0",
+    "@types/jsonwebtoken": "^9.0.0",
+    "@types/cors": "^2.8.0"
+  }
+}
