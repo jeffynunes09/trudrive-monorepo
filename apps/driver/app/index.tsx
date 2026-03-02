@@ -40,7 +40,7 @@ export default function LoginScreen() {
     try {
       const result = await login({ email: email.trim(), password })
       await saveAuth(result.token, result.user)
-      router.replace({ pathname: '/home', params: { driverId: result.user.id } })
+      router.replace({ pathname: '/(tabs)', params: { driverId: result.user.id } })
     } catch (err: any) {
       setError(err.message || 'Erro ao entrar')
     } finally {
