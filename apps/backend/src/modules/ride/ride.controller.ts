@@ -28,6 +28,28 @@ export class RideController {
     }
   }
 
+  async findByDriver(req: Request, res: Response): Promise<void> {
+    try {
+      const { driverId } = req.params
+      const rides = await rideService.findAll({ driverId })
+      console.log(`[API] GET /rides/driver/${driverId} | found: ${rides.length}`)
+      res.json(rides)
+    } catch (err: any) {
+      res.status(500).json({ message: err.message })
+    }
+  }
+
+  async findByRider(req: Request, res: Response): Promise<void> {
+    try {
+      const { riderId } = req.params
+      const rides = await rideService.findAll({ riderId })
+      console.log(`[API] GET /rides/rider/${riderId} | found: ${rides.length}`)
+      res.json(rides)
+    } catch (err: any) {
+      res.status(500).json({ message: err.message })
+    }
+  }
+
   async findById(req: Request, res: Response): Promise<void> {
     try {
       const ride = await rideService.findById(req.params.id)

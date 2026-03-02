@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl } f
 import { Ionicons } from '@expo/vector-icons'
 import { SafeAreaView } from 'react-native-safe-area-context'
 import { RideDTO } from '../../../../packages/shared-types/src/index'
-import { getHistoryRides } from '../../utils/api'
+import { getRidesForDriverId } from '../../utils/api'
 import { getStoredUser } from '../../utils/storage'
 
 const STATUS_LABEL: Record<string, string> = {
@@ -84,8 +84,8 @@ export default function HistoryScreen() {
     setError(null)
     try {
       const user = await getStoredUser()
-      if (!user) { setError('Usuário não encontrado'); return }
-      const data = await getHistoryRides({ driverId: user.id })
+      if (!user?.id) { setError('Usuário não encontrado'); return }
+      const data = await getRidesForDriverId(user.id)
       setRides(data)
     } catch (e: any) {
       setError(e.message ?? 'Erro ao carregar histórico')

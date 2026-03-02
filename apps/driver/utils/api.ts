@@ -56,9 +56,6 @@ export function login(params: { email: string; password: string }): Promise<Auth
 }
 
 
-export function getHistoryRides({ driverId, riderId }: { driverId?: string; riderId?: string }): Promise<RideDTO[]> {
-  const clean: Record<string, string> = {}
-  if (driverId) clean.driverId = driverId
-  if (riderId) clean.riderId = riderId
-  return get<RideDTO[]>('/api/rides', clean)
+export function getRidesForDriverId(driverId: string): Promise<RideDTO[]> {
+  return get<RideDTO[]>(`/api/rides/driver/${driverId}`, {})
 }

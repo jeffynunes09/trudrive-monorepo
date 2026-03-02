@@ -25,7 +25,9 @@ export async function getStoredUser(): Promise<StoredUser | null> {
   const raw = await AsyncStorage.getItem(USER_KEY)
   if (!raw) return null
   try {
-    return JSON.parse(raw) as StoredUser
+    const parsed = JSON.parse(raw)
+    // normaliza: dados antigos podem ter sido salvos com _id em vez de id
+    return { ...parsed, id: parsed.id ?? parsed._id } as StoredUser
   } catch {
     return null
   }
