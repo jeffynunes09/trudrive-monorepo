@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   View,
   Text,
@@ -199,12 +199,14 @@ export default function HomeScreen() {
   }
 
   // Usa rota real do ORS se disponível, senão linha reta como fallback
-  const polylineCoords: LatLng[] = activeRide
-    ? (routeCoords ?? [
-        { latitude: activeRide.origin.lat, longitude: activeRide.origin.lng },
-        { latitude: activeRide.destination.lat, longitude: activeRide.destination.lng },
-      ])
-    : []
+  // useMemo evita nova referência de array a cada render causado por GPS (3s)
+  const polylineCoords = useMemo<LatLng[]>(() => {
+    if (!activeRide) return []
+    return routeCoords ?? [
+      { latitude: activeRide.origin.lat, longitude: activeRide.origin.lng },
+      { latitude: activeRide.destination.lat, longitude: activeRide.destination.lng },
+    ]
+  }, [activeRide, routeCoords])
 
   const initialRegion = driverLocation
     ? {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   View,
   Text,
@@ -59,6 +59,8 @@ export default function HomeScreen() {
   const [routeCoords, setRouteCoords] = useState<LatLng[] | null>(null)
 
   const driverFitDone = useRef(false)
+  const riderLocationRef = useRef(riderLocation)
+  riderLocationRef.current = riderLocation
 
   // GPS location
   useEffect(() => {
@@ -119,10 +121,11 @@ export default function HomeScreen() {
     socket.on('DRIVER_LOCATION_BROADCAST', ({ lat, lng }: { lat: number; lng: number }) => {
       setDriverLocation({ lat, lng })
 
-      if (!driverFitDone.current && riderLocation) {
+      const currentRiderLocation = riderLocationRef.current
+      if (!driverFitDone.current && currentRiderLocation) {
         driverFitDone.current = true
         mapRef.current?.fitToCoordinates([
-          { latitude: riderLocation.lat, longitude: riderLocation.lng },
+          { latitude: currentRiderLocation.lat, longitude: currentRiderLocation.lng },
           { latitude: lat, longitude: lng },
         ], { edgePadding: { top: 80, right: 60, bottom: 280, left: 60 }, animated: true })
       }
@@ -135,7 +138,7 @@ export default function HomeScreen() {
       socket.off('RIDE_STATUS_UPDATE')
       socket.off('DRIVER_LOCATION_BROADCAST')
     }
-  }, [riderLocation])
+  }, [])
 
   function requestRide() {
     if (!riderLocation || !destination.trim()) return
@@ -184,16 +187,16 @@ export default function HomeScreen() {
   const isRideActive = rideStatus !== null && rideStatus !== 'completed' && rideStatus !== 'cancelled'
   const isRideEnded = rideStatus === 'completed' || rideStatus === 'cancelled' || rideStatus === 'paid'
 
-  // Usa rota real se disponível, senão linha reta como fallback
-  const polylineCoords: LatLng[] =
-    routeCoords && isRideActive
-      ? routeCoords
-      : riderLocation && destCoord && isRideActive
-        ? [
-            { latitude: riderLocation.lat, longitude: riderLocation.lng },
-            { latitude: destCoord.lat, longitude: destCoord.lng },
-          ]
-        : []
+  // useMemo evita nova referência de array a cada render causado por driverLocation
+  const polylineCoords = useMemo<LatLng[]>(() => {
+    if (!isRideActive) return []
+    if (routeCoords) return routeCoords
+    if (riderLocation && destCoord) return [
+      { latitude: riderLocation.lat, longitude: riderLocation.lng },
+      { latitude: destCoord.lat, longitude: destCoord.lng },
+    ]
+    return []
+  }, [isRideActive, routeCoords, riderLocation, destCoord])
 
   const initialRegion = riderLocation
     ? {
