@@ -54,7 +54,7 @@ export default function HomeScreen() {
 
   // Get rider GPS location once
   useEffect(() => {
-    ;(async () => {
+    ; (async () => {
       const { status } = await Location.requestForegroundPermissionsAsync()
       if (status !== 'granted') return
 
@@ -179,24 +179,24 @@ export default function HomeScreen() {
   const polylineCoords: LatLng[] =
     riderLocation && destCoord && isRideActive
       ? [
-          { latitude: riderLocation.lat, longitude: riderLocation.lng },
-          { latitude: destCoord.lat, longitude: destCoord.lng },
-        ]
+        { latitude: riderLocation.lat, longitude: riderLocation.lng },
+        { latitude: destCoord.lat, longitude: destCoord.lng },
+      ]
       : []
 
   const initialRegion = riderLocation
     ? {
-        latitude: riderLocation.lat,
-        longitude: riderLocation.lng,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }
+      latitude: riderLocation.lat,
+      longitude: riderLocation.lng,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    }
     : {
-        latitude: -23.55,
-        longitude: -46.63,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      }
+      latitude: -23.55,
+      longitude: -46.63,
+      latitudeDelta: 0.05,
+      longitudeDelta: 0.05,
+    }
   return (
     <View style={styles.container}>
       {/* Map */}
@@ -435,7 +435,7 @@ const styles = StyleSheet.create({
   },
 })
 
-// Dark map style based on TruDrive design system tokens
+// Dark map style based on JnDrive design system tokens
 // --background #0d1221 | --card #141e32 | --muted #1b253b | --border #222d44
 // --primary #1adad0 | --muted-foreground #7b92a5 | --foreground #edf2f7
 const mapStyle = [

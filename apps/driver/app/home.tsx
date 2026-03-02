@@ -49,32 +49,32 @@ export default function HomeScreen() {
   useEffect(() => {
     let subscription: Location.LocationSubscription | null = null
 
-    ;(async () => {
-      const { status } = await Location.requestForegroundPermissionsAsync()
-      if (status !== 'granted') return
+      ; (async () => {
+        const { status } = await Location.requestForegroundPermissionsAsync()
+        if (status !== 'granted') return
 
-      subscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 3000,
-          distanceInterval: 10,
-        },
-        ({ coords }) => {
-          const loc = { lat: coords.latitude, lng: coords.longitude }
-          setDriverLocation(loc)
-          setLocationReady(true)
+        subscription = await Location.watchPositionAsync(
+          {
+            accuracy: Location.Accuracy.High,
+            timeInterval: 3000,
+            distanceInterval: 10,
+          },
+          ({ coords }) => {
+            const loc = { lat: coords.latitude, lng: coords.longitude }
+            setDriverLocation(loc)
+            setLocationReady(true)
 
-          if (isOnlineRef.current) {
-            const socket = getSocket()
-            socket.emit('DRIVER_LOCATION_UPDATE', {
-              driverId: driverIdRef.current,
-              lat: coords.latitude,
-              lng: coords.longitude,
-            })
+            if (isOnlineRef.current) {
+              const socket = getSocket()
+              socket.emit('DRIVER_LOCATION_UPDATE', {
+                driverId: driverIdRef.current,
+                lat: coords.latitude,
+                lng: coords.longitude,
+              })
+            }
           }
-        }
-      )
-    })()
+        )
+      })()
 
     return () => {
       subscription?.remove()
@@ -190,25 +190,25 @@ export default function HomeScreen() {
 
   const polylineCoords: LatLng[] = activeRide && driverLocation
     ? [
-        { latitude: driverLocation.lat, longitude: driverLocation.lng },
-        { latitude: activeRide.origin.lat, longitude: activeRide.origin.lng },
-        { latitude: activeRide.destination.lat, longitude: activeRide.destination.lng },
-      ]
+      { latitude: driverLocation.lat, longitude: driverLocation.lng },
+      { latitude: activeRide.origin.lat, longitude: activeRide.origin.lng },
+      { latitude: activeRide.destination.lat, longitude: activeRide.destination.lng },
+    ]
     : []
 
   const initialRegion = driverLocation
     ? {
-        latitude: driverLocation.lat,
-        longitude: driverLocation.lng,
-        latitudeDelta: 0.01,
-        longitudeDelta: 0.01,
-      }
+      latitude: driverLocation.lat,
+      longitude: driverLocation.lng,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    }
     : {
-        latitude: -23.55,
-        longitude: -46.63,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      }
+      latitude: -23.55,
+      longitude: -46.63,
+      latitudeDelta: 0.05,
+      longitudeDelta: 0.05,
+    }
 
   return (
     <View style={styles.container}>
@@ -538,7 +538,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 })
-// Dark map style based on TruDrive design system tokens
+// Dark map style based on JnDrive design system tokens
 // --background #0d1221 | --card #141e32 | --muted #1b253b | --border #222d44
 // --primary #1adad0 | --muted-foreground #7b92a5 | --foreground #edf2f7
 const mapStyle = [

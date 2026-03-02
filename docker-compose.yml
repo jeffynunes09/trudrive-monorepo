@@ -3,22 +3,22 @@ version: '3.9'
 services:
   mongo:
     image: mongo:latest
-    container_name: trudrive-mongo
+    container_name: jndrive-mongo
     ports:
       - '27017:27017'
     environment:
       MONGO_INITDB_ROOT_USERNAME: root
       MONGO_INITDB_ROOT_PASSWORD: root
-      MONGO_INITDB_DATABASE: trudrive
+      MONGO_INITDB_DATABASE: jndrive
     volumes:
       - mongo_data:/data/db
     restart: unless-stopped
     networks:
-      - trudrive-dev
+      - jndrive-dev
 
   mongo-express:
     image: mongo-express:latest
-    container_name: trudrive-mongo-express
+    container_name: jndrive-mongo-express
     ports:
       - '8081:8081'
     environment:
@@ -30,21 +30,21 @@ services:
       - mongo
     restart: unless-stopped
     networks:
-      - trudrive-dev
+      - jndrive-dev
 
   redis:
     image: redis:7-alpine
-    container_name: trudrive-redis
+    container_name: jndrive-redis
     ports:
       - '6379:6379'
     volumes:
       - redis_data:/data
     restart: unless-stopped
     networks:
-      - trudrive-dev
+      - jndrive-dev
 
 networks:
-  trudrive-dev:
+  jndrive-dev:
     driver: bridge
 
 volumes:

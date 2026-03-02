@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage'
 
-const TOKEN_KEY = '@trudrive_driver_token'
-const USER_KEY = '@trudrive_driver_user'
+const TOKEN_KEY = '@jndrive_driver_token'
+const USER_KEY = '@jndrive_driver_user'
 
 export interface StoredUser {
   id: string

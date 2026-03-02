@@ -65,7 +65,7 @@ export default function LoginScreen() {
           <View style={styles.logoBox}>
             <Text style={styles.logoIcon}>T</Text>
           </View>
-          <Text style={styles.appName}>TruDrive</Text>
+          <Text style={styles.appName}>JnDrive</Text>
           <View style={styles.roleBadge}>
             <Text style={styles.roleBadgeText}>PASSAGEIRO</Text>
           </View>
