@@ -32,8 +32,9 @@ export class RideService {
 
   async requestRide(data: CreateRideDto): Promise<{ ride: IRide; driverIds: string[] }> {
  //TODO: BLOQUEAR CRIAÇÃO EM CASO DE FALHA DE ROTA (EX: ORIGIN/DESTINO INACESSÍVEIS)
+ console.log(`dados da corrida`, data)
     const route = await getRoute(data.origin, data.destination)
-
+    console.log(`[RideService] Route fetched: distance=${route?.distance}m duration=${route?.duration}s`)
     const fare = route
       ? Math.round((AppConfig.BASE_FARE + route.distance * AppConfig.FARE_PER_KM + route.duration * AppConfig.FARE_PER_MIN) * 100) / 100
       : undefined
