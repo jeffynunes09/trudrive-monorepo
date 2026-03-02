@@ -105,7 +105,7 @@ export default function HomeScreen() {
   }, [riderLocation])
 
   function requestRide() {
-    if (!riderLocation || !destination.trim() || !connected) return
+    if (!riderLocation || !destination.trim()) return
 
     const dest = {
       lat: riderLocation.lat - 0.01,
@@ -267,7 +267,6 @@ export default function HomeScreen() {
                 (!locationReady || !destination.trim() || !connected || loading) && styles.requestButtonDisabled,
               ]}
               onPress={requestRide}
-              disabled={!locationReady || !destination.trim() || !connected || loading}
             >
               {loading ? (
                 <ActivityIndicator color="#fff" size="small" />

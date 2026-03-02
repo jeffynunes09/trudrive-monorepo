@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import {
   View,
   Text,
@@ -7,71 +7,129 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  ActivityIndicator,
+  ScrollView,
 } from 'react-native'
 import { router } from 'expo-router'
-import { getSocket } from '../utils/socket'
+import { login } from '../utils/api'
+import { saveAuth } from '../utils/storage'
+
+const C = {
+  bg: '#0d1221',
+  card: '#131c2e',
+  input: '#1c2a44',
+  border: '#1e2e48',
+  fg: '#edf2f7',
+  fgMuted: '#7b92a5',
+  primary: '#1adad0',
+  primaryFg: '#0d1221',
+  error: '#ef4444',
+}
 
 export default function LoginScreen() {
-  const [driverId, setDriverId] = useState('')
-  const [connected, setConnected] = useState(false)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
-  useEffect(() => {
-    const socket = getSocket()
-    socket.connect()
+  async function handleLogin() {
+    if (!email.trim() || !password) return
+    setError(null)
+    setLoading(true)
 
-    socket.on('connect', () => setConnected(true))
-    socket.on('disconnect', () => setConnected(false))
-
-    if (socket.connected) setConnected(true)
-
-    return () => {
-      socket.off('connect')
-      socket.off('disconnect')
+    try {
+      const result = await login({ email: email.trim(), password })
+      await saveAuth(result.token, result.user)
+      router.replace({ pathname: '/home', params: { driverId: result.user.id } })
+    } catch (err: any) {
+      setError(err.message || 'Erro ao entrar')
+    } finally {
+      setLoading(false)
     }
-  }, [])
-
-  function handleEnter() {
-    if (!driverId.trim() || !connected) return
-    router.push({ pathname: '/home', params: { driverId: driverId.trim() } })
   }
+
+  const canSubmit = email.trim().length > 0 && password.length > 0 && !loading
 
   return (
     <KeyboardAvoidingView
       style={styles.container}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
-      <View style={styles.content}>
-        <View style={styles.logoContainer}>
-          <Text style={styles.logo}>TruDrive</Text>
-          <Text style={styles.subtitle}>Motorista</Text>
+      <ScrollView
+        contentContainerStyle={styles.scroll}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        {/* Logo */}
+        <View style={styles.logoSection}>
+          <View style={styles.logoBox}>
+            <Text style={styles.logoIcon}>T</Text>
+          </View>
+          <Text style={styles.appName}>TruDrive</Text>
+          <View style={styles.roleBadge}>
+            <Text style={styles.roleBadgeText}>MOTORISTA</Text>
+          </View>
         </View>
 
-        <View style={styles.form}>
-          <Text style={styles.label}>ID do Motorista</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Digite seu ID"
-            placeholderTextColor="#555"
-            value={driverId}
-            onChangeText={setDriverId}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
+        {/* Form */}
+        <View style={styles.card}>
+          <Text style={styles.title}>Entrar</Text>
 
-          <View style={styles.statusRow}>
-            <View style={[styles.dot, { backgroundColor: connected ? '#22c55e' : '#ef4444' }]} />
-            <Text style={styles.statusText}>{connected ? 'Conectado' : 'Sem conexão'}</Text>
+          <View style={styles.field}>
+            <Text style={styles.label}>E-mail</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="seu@email.com"
+              placeholderTextColor={C.fgMuted}
+              value={email}
+              onChangeText={setEmail}
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!loading}
+            />
           </View>
 
+          <View style={styles.field}>
+            <Text style={styles.label}>Senha</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="••••••••"
+              placeholderTextColor={C.fgMuted}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry
+              editable={!loading}
+            />
+          </View>
+
+          {error && (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
           <TouchableOpacity
-            style={[styles.button, (!connected || !driverId.trim()) && styles.buttonDisabled]}
-            onPress={handleEnter}
-            disabled={!connected || !driverId.trim()}
+            style={[styles.btn, !canSubmit && styles.btnDisabled]}
+            onPress={handleLogin}
+            disabled={!canSubmit}
+            activeOpacity={0.85}
           >
-            <Text style={styles.buttonText}>Entrar</Text>
+            {loading ? (
+              <ActivityIndicator color={C.primaryFg} size="small" />
+            ) : (
+              <Text style={styles.btnText}>Entrar</Text>
+            )}
           </TouchableOpacity>
+
+          <View style={styles.registerRow}>
+            <Text style={styles.registerHint}>Não tem conta? </Text>
+            <TouchableOpacity onPress={() => router.push('/register')}>
+              <Text style={styles.registerLink}>Cadastre-se</Text>
+            </TouchableOpacity>
+          </View>
         </View>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   )
 }
@@ -79,76 +137,133 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#0f0f0f',
+    backgroundColor: C.bg,
   },
-  content: {
-    flex: 1,
+  scroll: {
+    flexGrow: 1,
     justifyContent: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 24,
+    paddingVertical: 48,
   },
-  logoContainer: {
+  logoSection: {
     alignItems: 'center',
-    marginBottom: 48,
+    marginBottom: 40,
+    gap: 10,
   },
-  logo: {
-    fontSize: 42,
+  logoBox: {
+    width: 56,
+    height: 56,
+    borderRadius: 14,
+    backgroundColor: C.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: C.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.4,
+    shadowRadius: 16,
+    elevation: 12,
+  },
+  logoIcon: {
+    fontSize: 28,
     fontWeight: '800',
-    color: '#ffffff',
-    letterSpacing: -1,
+    color: C.primaryFg,
   },
-  subtitle: {
-    fontSize: 16,
-    color: '#888',
-    marginTop: 4,
-    letterSpacing: 2,
-    textTransform: 'uppercase',
+  appName: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: C.fg,
+    letterSpacing: -0.5,
   },
-  form: {
-    gap: 12,
+  roleBadge: {
+    backgroundColor: C.input,
+    borderRadius: 20,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: C.border,
+  },
+  roleBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: C.fgMuted,
+    letterSpacing: 1.5,
+  },
+  card: {
+    backgroundColor: C.card,
+    borderRadius: 16,
+    padding: 24,
+    borderWidth: 1,
+    borderColor: C.border,
+    gap: 16,
+  },
+  title: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: C.fg,
+  },
+  field: {
+    gap: 6,
   },
   label: {
-    color: '#aaa',
-    fontSize: 13,
-    marginBottom: 4,
+    fontSize: 12,
+    fontWeight: '600',
+    color: C.fgMuted,
   },
   input: {
-    backgroundColor: '#1a1a1a',
-    borderWidth: 1,
-    borderColor: '#2a2a2a',
+    backgroundColor: C.input,
     borderRadius: 12,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    color: '#fff',
-    fontSize: 16,
+    borderWidth: 1,
+    borderColor: C.border,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    color: C.fg,
+    fontSize: 14,
   },
-  statusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
+  errorBox: {
+    backgroundColor: '#2a0a0a',
+    borderRadius: 10,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#7f1d1d',
   },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  statusText: {
-    color: '#666',
+  errorText: {
+    color: C.error,
     fontSize: 13,
   },
-  button: {
-    backgroundColor: '#22c55e',
+  btn: {
+    backgroundColor: C.primary,
     borderRadius: 12,
-    paddingVertical: 16,
+    paddingVertical: 15,
     alignItems: 'center',
-    marginTop: 8,
+    shadowColor: C.primary,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.35,
+    shadowRadius: 16,
+    elevation: 8,
   },
-  buttonDisabled: {
-    backgroundColor: '#1a3a1a',
+  btnDisabled: {
+    backgroundColor: '#0d2a28',
+    shadowOpacity: 0,
+    elevation: 0,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
+  btnText: {
+    color: C.primaryFg,
+    fontSize: 14,
     fontWeight: '700',
+  },
+  registerRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingTop: 4,
+  },
+  registerHint: {
+    color: C.fgMuted,
+    fontSize: 13,
+  },
+  registerLink: {
+    color: C.primary,
+    fontSize: 13,
+    fontWeight: '600',
   },
 })

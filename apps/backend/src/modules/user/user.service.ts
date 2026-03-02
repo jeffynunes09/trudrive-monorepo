@@ -3,15 +3,16 @@ import { FilterQuery } from 'mongoose'
 
 export interface CreateUserDto {
   name: string
-  phone: string
-  email?: string
+  email: string
   role: 'driver' | 'rider' | 'admin'
+  phone?: string
   profileImage?: string
 }
 
 export interface UpdateUserDto {
   name?: string
   email?: string
+  phone?: string
   profileImage?: string
   isActive?: boolean
   isApproved?: boolean
@@ -35,8 +36,8 @@ export class UserService {
     return User.findById(id)
   }
 
-  async findByPhone(phone: string): Promise<IUser | null> {
-    return User.findOne({ phone })
+  async findByEmail(email: string): Promise<IUser | null> {
+    return User.findOne({ email: email.toLowerCase() })
   }
 
   async update(id: string, data: UpdateUserDto): Promise<IUser | null> {

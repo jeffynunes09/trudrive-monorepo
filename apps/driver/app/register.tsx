@@ -11,7 +11,7 @@ import {
   ScrollView,
 } from 'react-native'
 import { router } from 'expo-router'
-import { login } from '../utils/api'
+import { register } from '../utils/api'
 import { saveAuth } from '../utils/storage'
 
 const C = {
@@ -26,29 +26,57 @@ const C = {
   error: '#ef4444',
 }
 
-export default function LoginScreen() {
+export default function RegisterScreen() {
+  const [name, setName] = useState('')
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  async function handleLogin() {
-    if (!email.trim() || !password) return
+  async function handleRegister() {
     setError(null)
+
+    if (!name.trim() || !email.trim() || !password) {
+      setError('Preencha todos os campos obrigatórios')
+      return
+    }
+
+    if (password.length < 6) {
+      setError('A senha deve ter no mínimo 6 caracteres')
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setError('As senhas não coincidem')
+      return
+    }
+
     setLoading(true)
 
     try {
-      const result = await login({ email: email.trim(), password })
+      const result = await register({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+        phone: phone.trim() || undefined,
+      })
       await saveAuth(result.token, result.user)
-      router.replace({ pathname: '/home', params: { userId: result.user.id } })
+      router.replace({ pathname: '/home', params: { driverId: result.user.id } })
     } catch (err: any) {
-      setError(err.message || 'Erro ao entrar')
+      setError(err.message || 'Erro ao cadastrar')
     } finally {
       setLoading(false)
     }
   }
 
-  const canSubmit = email.trim().length > 0 && password.length > 0 && !loading
+  const canSubmit =
+    name.trim().length > 0 &&
+    email.trim().length > 0 &&
+    password.length > 0 &&
+    confirmPassword.length > 0 &&
+    !loading
 
   return (
     <KeyboardAvoidingView
@@ -67,16 +95,29 @@ export default function LoginScreen() {
           </View>
           <Text style={styles.appName}>TruDrive</Text>
           <View style={styles.roleBadge}>
-            <Text style={styles.roleBadgeText}>PASSAGEIRO</Text>
+            <Text style={styles.roleBadgeText}>MOTORISTA</Text>
           </View>
         </View>
 
         {/* Form */}
         <View style={styles.card}>
-          <Text style={styles.title}>Entrar</Text>
+          <Text style={styles.title}>Criar conta</Text>
 
           <View style={styles.field}>
-            <Text style={styles.label}>E-mail</Text>
+            <Text style={styles.label}>Nome completo *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Seu nome"
+              placeholderTextColor={C.fgMuted}
+              value={name}
+              onChangeText={setName}
+              autoCapitalize="words"
+              editable={!loading}
+            />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>E-mail *</Text>
             <TextInput
               style={styles.input}
               placeholder="seu@email.com"
@@ -91,13 +132,42 @@ export default function LoginScreen() {
           </View>
 
           <View style={styles.field}>
-            <Text style={styles.label}>Senha</Text>
+            <Text style={styles.label}>Telefone (opcional)</Text>
             <TextInput
               style={styles.input}
-              placeholder="••••••••"
+              placeholder="+55 11 99999-9999"
+              placeholderTextColor={C.fgMuted}
+              value={phone}
+              onChangeText={setPhone}
+              keyboardType="phone-pad"
+              editable={!loading}
+            />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Senha *</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Mínimo 6 caracteres"
               placeholderTextColor={C.fgMuted}
               value={password}
               onChangeText={setPassword}
+              secureTextEntry
+              editable={!loading}
+            />
+          </View>
+
+          <View style={styles.field}>
+            <Text style={styles.label}>Confirmar senha *</Text>
+            <TextInput
+              style={[
+                styles.input,
+                confirmPassword.length > 0 && password !== confirmPassword && styles.inputError,
+              ]}
+              placeholder="Repita a senha"
+              placeholderTextColor={C.fgMuted}
+              value={confirmPassword}
+              onChangeText={setConfirmPassword}
               secureTextEntry
               editable={!loading}
             />
@@ -111,21 +181,21 @@ export default function LoginScreen() {
 
           <TouchableOpacity
             style={[styles.btn, !canSubmit && styles.btnDisabled]}
-            onPress={handleLogin}
+            onPress={handleRegister}
             disabled={!canSubmit}
             activeOpacity={0.85}
           >
             {loading ? (
               <ActivityIndicator color={C.primaryFg} size="small" />
             ) : (
-              <Text style={styles.btnText}>Entrar</Text>
+              <Text style={styles.btnText}>Cadastrar</Text>
             )}
           </TouchableOpacity>
 
-          <View style={styles.registerRow}>
-            <Text style={styles.registerHint}>Não tem conta? </Text>
-            <TouchableOpacity onPress={() => router.push('/register')}>
-              <Text style={styles.registerLink}>Cadastre-se</Text>
+          <View style={styles.loginRow}>
+            <Text style={styles.loginHint}>Já tem conta? </Text>
+            <TouchableOpacity onPress={() => router.back()}>
+              <Text style={styles.loginLink}>Entrar</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -219,6 +289,9 @@ const styles = StyleSheet.create({
     color: C.fg,
     fontSize: 14,
   },
+  inputError: {
+    borderColor: C.error,
+  },
   errorBox: {
     backgroundColor: '#2a0a0a',
     borderRadius: 10,
@@ -251,17 +324,17 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '700',
   },
-  registerRow: {
+  loginRow: {
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
     paddingTop: 4,
   },
-  registerHint: {
+  loginHint: {
     color: C.fgMuted,
     fontSize: 13,
   },
-  registerLink: {
+  loginLink: {
     color: C.primary,
     fontSize: 13,
     fontWeight: '600',

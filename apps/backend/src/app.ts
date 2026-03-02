@@ -5,6 +5,7 @@ import 'dotenv/config'
 
 import { connectDatabase } from './infrastructure/database/connection'
 import { initWebSocket } from './infrastructure/websocket/socket'
+import authRoutes from './modules/auth/auth.routes'
 
 const app = express()
 const httpServer = createServer(app)
@@ -20,6 +21,7 @@ app.use(express.urlencoded({ extended: true }))
 // app.use('/api/payments', paymentRoutes)
 // app.use('/api/uploads', uploadRoutes)
 
+app.use('/api/auth', authRoutes)
 app.get('/health', (_, res) => res.json({ status: 'ok' }))
 
 async function bootstrap() {
