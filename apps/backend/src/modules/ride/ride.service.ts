@@ -75,6 +75,9 @@ export class RideService {
     return Ride.findById(id)
   }
 
+  async findByRiderId(riderId: string): Promise<IRide[]> {
+    return Ride.find({ riderId }) .sort({ createdAt: -1 })}
+
   async update(id: string, data: UpdateRideDto): Promise<IRide | null> {
     return Ride.findByIdAndUpdate(id, data, { new: true, runValidators: true })
   }

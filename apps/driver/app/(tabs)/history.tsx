@@ -128,6 +128,7 @@ export default function HistoryScreen() {
         </View>
       ) : (
         <FlatList
+          key={rides.map(ride => ride.id).join(',')}
           data={rides}
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => <RideCard ride={item} />}

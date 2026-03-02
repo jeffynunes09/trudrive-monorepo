@@ -8,6 +8,10 @@ const rideService = new RideService()
 export function registerRideHandlers(socket: Socket): void {
   socket.on(SocketEvents.RIDE_CREATE, async (payload) => {
     try {
+       const validadeRequestRide = await rideService.findByRiderId(payload.riderId)
+       if (validadeRequestRide.length > 0) {
+         return { error: 'Rider already has an active ride' }
+       }
       const { ride, driverIds } = await rideService.requestRide(payload)
 
       // Rider entra na sua sala de notificações
