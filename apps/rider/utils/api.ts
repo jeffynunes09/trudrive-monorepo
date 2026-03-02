@@ -1,5 +1,9 @@
+import { Platform } from 'react-native'
+
 // iOS simulator: localhost | Android emulator: 10.0.2.2 | Device: LAN IP
-const API_URL = 'http://localhost:3000'
+const API_URL = Platform.OS === 'android'
+  ? 'http://10.0.2.2:3000'
+  : 'http://localhost:3000'
 
 export interface AuthResult {
   token: string

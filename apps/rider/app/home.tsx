@@ -66,6 +66,7 @@ export default function HomeScreen() {
   useEffect(() => {
     const socket = getSocket()
 
+    socket.connect()
     if (socket.connected) setConnected(true)
 
     socket.on('connect', () => setConnected(true))
@@ -191,7 +192,11 @@ export default function HomeScreen() {
         latitudeDelta: 0.05,
         longitudeDelta: 0.05,
       }
-
+useEffect(()=>{
+  console.log('Initializing socket connection')
+  const socket = getSocket()
+  console.log('Socket object:', socket)
+})
   return (
     <View style={styles.container}>
       {/* Map */}

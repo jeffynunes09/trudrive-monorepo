@@ -83,6 +83,7 @@ export default function HomeScreen() {
   useEffect(() => {
     const socket = getSocket()
 
+    socket.connect()
     if (socket.connected) setConnected(true)
 
     socket.on('connect', () => setConnected(true))

@@ -73,4 +73,9 @@ export function registerRideHandlers(socket: Socket): void {
       ack({ error: err.message })
     }
   })
+  socket.on(SocketEvents.USER_ONLINE,async ({ userId, role }: { userId: string; role: 'rider' | 'driver' }) => {
+    socket.data.userId = userId
+    socket.join(`${role}:${userId}`)
+    console.log(`[WS] ${role} ${userId} joined room`)
+  })
 }
