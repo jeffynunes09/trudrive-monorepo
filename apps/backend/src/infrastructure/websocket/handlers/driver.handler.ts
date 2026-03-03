@@ -165,15 +165,17 @@ export function registerDriverHandlers(socket: Socket): void {
     const driverLoc = await getDriverLocation(driverId)
     if (driverLoc) {
       const routeToPickup = await getRoute(driverLoc, updated.origin)
-      socket.emit(SocketEvents.RIDE_ROUTE_UPDATE, {
+      const pickupRoutePayload = {
         rideId,
-        phase: 'to_pickup',
+        phase: 'to_pickup' as const,
         origin: driverLoc,
         destination: updated.origin,
         destinationRide: updated.destination,
         geometry: routeToPickup?.geometry ?? null,
-        riderInfo,
-      })
+      }
+      // Envia rota ao motorista (com dados do passageiro) e ao passageiro
+      socket.emit(SocketEvents.RIDE_ROUTE_UPDATE, { ...pickupRoutePayload, riderInfo })
+      io.to(`user:${updated.riderId}`).emit(SocketEvents.RIDE_ROUTE_UPDATE, pickupRoutePayload)
     }
 
     console.log(`[WS] Driver ${driverId} aceitou corrida ${rideId}`)
@@ -198,15 +200,19 @@ export function registerDriverHandlers(socket: Socket): void {
     }
     socket.emit(SocketEvents.RIDE_STATUS_UPDATE, { rideId, status: 'in_progress' })
 
-    // Calcula rota do embarque até o destino e envia ao motorista
+    // Calcula rota do embarque até o destino e envia ao motorista e passageiro
     const routeToDest = await getRoute(started.origin, started.destination)
-    socket.emit(SocketEvents.RIDE_ROUTE_UPDATE, {
+    const destRoutePayload = {
       rideId,
-      phase: 'to_destination',
+      phase: 'to_destination' as const,
       origin: started.origin,
       destination: started.destination,
       geometry: routeToDest?.geometry ?? null,
-    })
+    }
+    socket.emit(SocketEvents.RIDE_ROUTE_UPDATE, destRoutePayload)
+    if (riderId) {
+      io.to(`user:${riderId}`).emit(SocketEvents.RIDE_ROUTE_UPDATE, destRoutePayload)
+    }
 
     console.log(`[WS] Driver ${driverId} — OTP verificado, corrida ${rideId} em andamento`)
   })

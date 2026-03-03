@@ -105,6 +105,8 @@ export default function HomeScreen() {
   riderLocationRef.current = riderLocation
   const destCoordRef = useRef(destCoord)
   destCoordRef.current = destCoord
+  // Ref mantém routeCoords acessível em callbacks de socket sem stale closure
+  const routeCoordsRef = useRef<LatLng[] | null>(null)
 
   useEffect(() => {
     async function init() {
@@ -126,6 +128,7 @@ export default function HomeScreen() {
         if (stored.driverId) setDriverInfo(stored.driverId)
         if (stored.geometry && stored.geometry.length > 0) {
           const coords: LatLng[] = stored.geometry.map(([lng, lat]) => ({ latitude: lat, longitude: lng }))
+          routeCoordsRef.current = coords
           setRouteCoords(coords)
         }
       }
@@ -208,6 +211,7 @@ export default function HomeScreen() {
         setDestCoord(null)
         setDriverInfo(null)
         setDriverDetails(null)
+        routeCoordsRef.current = null
         setRouteCoords(null)
         return
       }
@@ -221,6 +225,7 @@ export default function HomeScreen() {
       if (ride.driverInfo) setDriverDetails(ride.driverInfo)
       if (ride.geometry && ride.geometry.length > 0) {
         const coords: LatLng[] = ride.geometry.map(([lng, lat]) => ({ latitude: lat, longitude: lng }))
+        routeCoordsRef.current = coords
         setRouteCoords(coords)
         mapRef.current?.fitToCoordinates(coords, {
           edgePadding: { top: 80, right: 60, bottom: 280, left: 60 },
@@ -277,6 +282,7 @@ export default function HomeScreen() {
 
       if (geometry && geometry.length > 0) {
         const coords: LatLng[] = geometry.map(([lng, lat]) => ({ latitude: lat, longitude: lng }))
+        routeCoordsRef.current = coords
         setRouteCoords(coords)
         mapRef.current?.fitToCoordinates(coords, {
           edgePadding: { top: 80, right: 60, bottom: 280, left: 60 },
@@ -320,16 +326,50 @@ export default function HomeScreen() {
       }
     })
 
+    // Recebe a rota calculada pelo backend (driver→embarque ou embarque→destino)
+    // e atualiza o mapa para mostrar o caminho correto por fase
+    socket.on('RIDE_ROUTE_UPDATE', ({
+      geometry,
+    }: {
+      rideId: string
+      phase: 'to_pickup' | 'to_destination'
+      geometry: [number, number][] | null
+    }) => {
+      if (!geometry || geometry.length === 0) return
+      const coords: LatLng[] = geometry.map(([lng, lat]) => ({ latitude: lat, longitude: lng }))
+      routeCoordsRef.current = coords
+      setRouteCoords(coords)
+      // Marca como feito para o DRIVER_LOCATION_BROADCAST não re-ajustar o mapa
+      driverFitDone.current = true
+      mapRef.current?.fitToCoordinates(coords, {
+        edgePadding: { top: 80, right: 60, bottom: 280, left: 60 },
+        animated: true,
+      })
+    })
+
     socket.on('DRIVER_LOCATION_BROADCAST', ({ lat, lng }: { lat: number; lng: number }) => {
       setDriverLocation({ lat, lng })
 
-      const currentRiderLocation = riderLocationRef.current
-      if (!driverFitDone.current && currentRiderLocation) {
+      // Atualiza o primeiro ponto da polyline com a posição atual do motorista
+      // criando o efeito visual de rota "encolhendo" conforme ele se aproxima
+      const current = routeCoordsRef.current
+      if (current && current.length >= 2) {
+        const updated: LatLng[] = [{ latitude: lat, longitude: lng }, ...current.slice(1)]
+        routeCoordsRef.current = updated
+        setRouteCoords(updated)
+      }
+
+      // Fallback: se ainda não recebemos geometria de rota, ajusta o mapa
+      // para mostrar rider e motorista (ocorre apenas uma vez)
+      if (!driverFitDone.current) {
         driverFitDone.current = true
-        mapRef.current?.fitToCoordinates([
-          { latitude: currentRiderLocation.lat, longitude: currentRiderLocation.lng },
-          { latitude: lat, longitude: lng },
-        ], { edgePadding: { top: 80, right: 60, bottom: 280, left: 60 }, animated: true })
+        const currentRiderLocation = riderLocationRef.current
+        if (currentRiderLocation) {
+          mapRef.current?.fitToCoordinates([
+            { latitude: currentRiderLocation.lat, longitude: currentRiderLocation.lng },
+            { latitude: lat, longitude: lng },
+          ], { edgePadding: { top: 80, right: 60, bottom: 280, left: 60 }, animated: true })
+        }
       }
     })
 
@@ -343,6 +383,7 @@ export default function HomeScreen() {
       socket.off('RIDE_RESTORE')
       socket.off('RIDE_CREATED')
       socket.off('RIDE_STATUS_UPDATE')
+      socket.off('RIDE_ROUTE_UPDATE')
       socket.off('DRIVER_LOCATION_BROADCAST')
       socket.off('RIDE_ERROR')
     }
@@ -352,6 +393,7 @@ export default function HomeScreen() {
     if (!riderLocation || !destination.trim()) return
 
     setGeocodeError(null)
+    routeCoordsRef.current = null
     setRouteCoords(null)
     driverFitDone.current = false
     setLoading(true)
@@ -392,6 +434,7 @@ export default function HomeScreen() {
     setDriverLocation(null)
     setDestCoord(null)
     setRideInfo(null)
+    routeCoordsRef.current = null
     setRouteCoords(null)
     setDestination('')
     setLoading(false)

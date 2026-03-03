@@ -95,6 +95,22 @@ export default function HomeScreen() {
   const activeRideRef = useRef(activeRide)
   activeRideRef.current = activeRide
 
+  // Ref para acessar ridePhase dentro de callbacks sem stale closure
+  const ridePhaseRef = useRef(ridePhase)
+  ridePhaseRef.current = ridePhase
+
+  // Atualiza o primeiro ponto da polyline com a posição atual do motorista
+  // durante corrida ativa, criando o efeito visual de rota "sendo consumida"
+  useEffect(() => {
+    if (!driverLocation) return
+    setRouteCoords(prev => {
+      if (!prev || prev.length < 2) return prev
+      const phase = ridePhaseRef.current
+      if (phase !== 'driver_assigned' && phase !== 'in_progress') return prev
+      return [{ latitude: driverLocation.lat, longitude: driverLocation.lng }, ...prev.slice(1)]
+    })
+  }, [driverLocation])
+
   useEffect(() => {
     async function init() {
       if (!paramDriverId) {

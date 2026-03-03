@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useContext } from 'react'
 import {
   View,
   Text,
@@ -12,10 +12,10 @@ import {
 } from 'react-native'
 import { Ionicons } from '@expo/vector-icons'
 import { SafeAreaView } from 'react-native-safe-area-context'
-import { router } from 'expo-router'
 import * as ImagePicker from 'expo-image-picker'
-import { getStoredUser, clearAuth, StoredUser } from '../../utils/storage'
+import { getStoredUser, StoredUser } from '../../utils/storage'
 import { getMe, updateMe, getUploadUrl, UserProfile } from '../../utils/api'
+import { AuthContext } from '../_layout'
 
 const C = {
   bg: '#0f0f0f',
@@ -84,6 +84,7 @@ async function pickDocument(): Promise<string | null> {
 }
 
 export default function ProfileScreen() {
+  const { logout } = useContext(AuthContext)
   const [storedUser, setStoredUser] = useState<StoredUser | null>(null)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [name, setName] = useState('')
@@ -169,8 +170,7 @@ export default function ProfileScreen() {
   }
 
   async function handleLogout() {
-    await clearAuth()
-    router.replace('/')
+    await logout()
   }
 
   const profileImageUrl = profile?.profileImage ?? null
