@@ -7,7 +7,7 @@ let io: Server;
 export async function initWebSocket(httpServer: HttpServer): Promise<Server> {
   const pubClient = new Redis(process.env.REDIS_URL!);
   const subClient = pubClient.duplicate();
-
+subClient.on('error', (err) => console.error('❌ Redis sub error:', err.message));
   io = new Server(httpServer, {
     cors: { origin: "*" },
     adapter: createAdapter(pubClient, subClient),

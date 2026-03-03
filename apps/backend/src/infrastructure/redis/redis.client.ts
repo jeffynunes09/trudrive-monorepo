@@ -7,6 +7,8 @@ export function getRedisClient() {
     redis = new Redis(process.env.REDIS_URL!, {
       maxRetriesPerRequest: null,
       enableReadyCheck: false,
+        tls: process.env.REDIS_URL!.startsWith('rediss://') ? {} : undefined,
+      
     });
 
     redis.on("connect", () => {
