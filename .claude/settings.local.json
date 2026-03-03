@@ -9,7 +9,12 @@
       "Bash(npm install:*)",
       "Bash(npx expo:*)",
       "Bash(docker exec:*)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(docker ps --format \"{{.Names}} {{.Image}}\" 2>/dev/null)",
+      "Bash(node -e \"\nconst { MongoClient } = require\\('apps/backend/node_modules/mongodb'\\);\nconst client = new MongoClient\\('mongodb://root:root@localhost:27017/trudrive?authSource=admin'\\);\nclient.connect\\(\\).then\\(async \\(\\) => {\n  const result = await client.db\\('trudrive'\\).collection\\('rides'\\).deleteMany\\({ status: 'searching_driver' }\\);\n  console.log\\('Deletadas:', result.deletedCount, 'corridas com status searching_driver'\\);\n  await client.close\\(\\);\n}\\).catch\\(e => console.error\\('Erro:', e.message\\)\\);\n\")",
+      "Bash(node -e \"\nconst { MongoClient } = require\\('/mnt/c/Users/User/Desktop/trudrive-monorepo/apps/backend/node_modules/mongodb'\\);\nconst client = new MongoClient\\('mongodb://root:root@localhost:27017/trudrive?authSource=admin'\\);\nclient.connect\\(\\).then\\(async \\(\\) => {\n  const result = await client.db\\('trudrive'\\).collection\\('rides'\\).deleteMany\\({ status: 'searching_driver' }\\);\n  console.log\\('Deletadas:', result.deletedCount, 'corridas com status searching_driver'\\);\n  await client.close\\(\\);\n}\\).catch\\(e => console.error\\('Erro:', e.message\\)\\);\n\")",
+      "Bash(find /mnt/c/Users/User/Desktop/trudrive-monorepo -name \"mongodb\" -type d -path \"*/node_modules/mongodb\" 2>/dev/null | head -3)",
+      "Bash(node -e \"\nconst { MongoClient } = require\\('/mnt/c/Users/User/Desktop/trudrive-monorepo/node_modules/.pnpm/mongodb@6.20.0/node_modules/mongodb'\\);\nconst client = new MongoClient\\('mongodb://root:root@localhost:27017/trudrive?authSource=admin'\\);\nclient.connect\\(\\).then\\(async \\(\\) => {\n  const result = await client.db\\('trudrive'\\).collection\\('rides'\\).deleteMany\\({ status: 'searching_driver' }\\);\n  console.log\\('Deletadas:', result.deletedCount, 'corridas com status searching_driver'\\);\n  await client.close\\(\\);\n}\\).catch\\(e => console.error\\('Erro:', e.message\\)\\);\n\")"
     ]
   }
 }

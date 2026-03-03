@@ -2,12 +2,17 @@ import { Server, Socket } from 'socket.io'
 import { createAdapter } from '@socket.io/redis-adapter'
 import Redis from "ioredis";
 import { Server as HttpServer } from 'http'
+import { registerRideHandlers } from './handlers/ride.handler'
+import { registerDriverHandlers } from './handlers/driver.handler'
+import { registerUserHandlers } from './handlers/user.handler'
+
 let io: Server;
 
 export async function initWebSocket(httpServer: HttpServer): Promise<Server> {
   const pubClient = new Redis(process.env.REDIS_URL!);
   const subClient = pubClient.duplicate();
-subClient.on('error', (err) => console.error('❌ Redis sub error:', err.message));
+  subClient.on('error', (err) => console.error('❌ Redis sub error:', err.message));
+
   io = new Server(httpServer, {
     cors: { origin: "*" },
     adapter: createAdapter(pubClient, subClient),
@@ -15,6 +20,10 @@ subClient.on('error', (err) => console.error('❌ Redis sub error:', err.message
 
   io.on("connection", (socket: Socket) => {
     console.log(`[WS] Connected: ${socket.id}`);
+
+    registerRideHandlers(socket)
+    registerDriverHandlers(socket)
+    registerUserHandlers(socket)
 
     socket.on("disconnect", () => {
       console.log(`[WS] Disconnected: ${socket.id}`);

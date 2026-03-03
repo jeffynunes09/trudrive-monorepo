@@ -5,6 +5,9 @@ const API_URL =
   process.env.EXPO_PUBLIC_API_URL ??
   (Platform.OS === 'android' ? 'http://10.0.2.2:3000' : 'http://localhost:3000')
 
+console.log('[rider/api] EXPO_PUBLIC_API_URL:', process.env.EXPO_PUBLIC_API_URL)
+console.log('[rider/api] API_URL resolvido:', API_URL)
+
 export interface AuthResult {
   token: string
   user: {
@@ -70,9 +73,13 @@ export interface GeocodeResult {
 
 /** Converte endereço digitado em coordenadas */
 export async function geocodeAddress(address: string): Promise<GeocodeResult | null> {
+  console.log('[rider/api] geocodeAddress chamado — url:', `${API_URL}/api/geocode/forward?address=${address}`)
   try {
-    return await get<GeocodeResult>('/api/geocode/forward', { address })
-  } catch {
+    const result = await get<GeocodeResult>('/api/geocode/forward', { address })
+    console.log('[rider/api] geocodeAddress sucesso:', result)
+    return result
+  } catch (e: any) {
+    console.error('[rider/api] geocodeAddress erro:', e.message)
     return null
   }
 }

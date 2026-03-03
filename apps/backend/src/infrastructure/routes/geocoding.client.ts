@@ -6,38 +6,33 @@ export interface GeocodeResult {
   address: string
 }
 
-function getBaseUrl(): string | null {
-  const baseUrl = process.env.OPENAI_ROUTES_SERVICE
-  if (!baseUrl) return null
-  const { protocol, host } = new URL(baseUrl)
-  return `${protocol}//${host}`
-}
+const NOMINATIM = 'https://nominatim.openstreetmap.org'
 
 /**
  * Forward geocoding: endereço em texto → coordenadas
- * GET /geocode/search?api_key=KEY&text=ADDRESS&size=1
+ * Usa Nominatim (OpenStreetMap) — gratuito, sem API key, ótimo para Brasil
  */
 export async function forwardGeocode(text: string): Promise<GeocodeResult | null> {
-  const base = getBaseUrl()
-  const apiKey = process.env.ORS_API_KEY
-  if (!base || !apiKey) {
-    console.warn('[Geocode] OPENAI_ROUTES_SERVICE ou ORS_API_KEY não configurado')
-    return null
-  }
-
   try {
-    const response = await axios.get(`${base}/geocode/search`, {
-      params: { api_key: apiKey, text, size: 1 },
-      timeout: 6000,
+    const query = text.toLowerCase().includes('brasil') ? text : `${text}, Brasil`
+    const response = await axios.get(`${NOMINATIM}/search`, {
+      params: { q: query, format: 'json', limit: 1 },
+      headers: { 'User-Agent': 'TruDrive/1.0' },
+      timeout: 8000,
     })
 
-    const feature = response.data?.features?.[0]
-    if (!feature) return null
+    const place = response.data?.[0]
+    if (!place) {
+      console.warn('[Geocode] forward: nenhum resultado para:', text)
+      return null
+    }
 
-    const [lng, lat] = feature.geometry.coordinates as [number, number]
-    const address: string = feature.properties?.label ?? text
-
-    return { lat, lng, address }
+    console.log('[Geocode] forward resultado:', place.display_name)
+    return {
+      lat: parseFloat(place.lat),
+      lng: parseFloat(place.lon),
+      address: place.display_name,
+    }
   } catch (err: any) {
     console.warn(`[Geocode] forward failed: ${err.message}`)
     return null
@@ -46,26 +41,20 @@ export async function forwardGeocode(text: string): Promise<GeocodeResult | null
 
 /**
  * Reverse geocoding: coordenadas → endereço em texto
- * GET /geocode/reverse?api_key=KEY&point.lon=LNG&point.lat=LAT&size=1
  */
 export async function reverseGeocode(lat: number, lng: number): Promise<string | null> {
-  const base = getBaseUrl()
-  const apiKey = process.env.ORS_API_KEY
-  if (!base || !apiKey) {
-    console.warn('[Geocode] OPENAI_ROUTES_SERVICE ou ORS_API_KEY não configurado')
-    return null
-  }
-
   try {
-    const response = await axios.get(`${base}/geocode/reverse`, {
-      params: { api_key: apiKey, 'point.lat': lat, 'point.lon': lng, size: 1 },
-      timeout: 6000,
+    const response = await axios.get(`${NOMINATIM}/reverse`, {
+      params: { lat, lon: lng, format: 'json' },
+      headers: { 'User-Agent': 'TruDrive/1.0' },
+      timeout: 8000,
     })
 
-    const feature = response.data?.features?.[0]
-    if (!feature) return null
+    const address = response.data?.display_name
+    if (!address) return null
 
-    return feature.properties?.label as string ?? null
+    console.log('[Geocode] reverse resultado:', address)
+    return address as string
   } catch (err: any) {
     console.warn(`[Geocode] reverse failed: ${err.message}`)
     return null

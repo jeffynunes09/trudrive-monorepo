@@ -51,6 +51,8 @@ export default function HomeScreen() {
   const [connected, setConnected] = useState(false)
   const [riderLocation, setRiderLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [locationReady, setLocationReady] = useState(false)
+  const [origin, setOrigin] = useState('')
+  const [originGeocoding, setOriginGeocoding] = useState(false)
   const [destination, setDestination] = useState('')
   const [rideStatus, setRideStatus] = useState<RideStatus | null>(null)
   const [driverInfo, setDriverInfo] = useState<string | null>(null)
@@ -76,10 +78,47 @@ export default function HomeScreen() {
       setLocationReady(true)
 
       reverseGeocodeLocation(coords.latitude, coords.longitude)
-        .then(addr => { if (addr) setOriginAddress(addr) })
+        .then(addr => {
+          if (addr) {
+            setOriginAddress(addr)
+            setOrigin(addr)
+          }
+        })
         .catch(() => {})
     })()
   }, [])
+
+  // Quando a localização do usuário chega (GPS ou manual), centraliza o mapa nela
+  useEffect(() => {
+    if (!riderLocation) return
+    mapRef.current?.animateToRegion({
+      latitude: riderLocation.lat,
+      longitude: riderLocation.lng,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    }, 800)
+  }, [riderLocation])
+
+  async function applyOriginAddress() {
+    if (!origin.trim()) return
+    setOriginGeocoding(true)
+    const geocoded = await geocodeAddress(origin.trim())
+    setOriginGeocoding(false)
+    if (!geocoded) {
+      setGeocodeError('Origem não encontrada. Tente ser mais específico.')
+      return
+    }
+    setRiderLocation({ lat: geocoded.lat, lng: geocoded.lng })
+    setOriginAddress(geocoded.address)
+    setOrigin(geocoded.address)
+    setGeocodeError(null)
+    mapRef.current?.animateToRegion({
+      latitude: geocoded.lat,
+      longitude: geocoded.lng,
+      latitudeDelta: 0.01,
+      longitudeDelta: 0.01,
+    }, 800)
+  }
 
   // Socket events
   useEffect(() => {
@@ -104,6 +143,7 @@ export default function HomeScreen() {
       fare: number | null
       geometry: [number, number][] | null
     }) => {
+      console.log('[rider] RIDE_CREATED recebido:', { rideId, distance, duration, fare })
       setRideInfo({ rideId, distance, duration, fare, otp: null })
       setRideStatus('searching_driver')
       setLoading(false)
@@ -119,6 +159,7 @@ export default function HomeScreen() {
     })
 
     socket.on('RIDE_STATUS_UPDATE', ({ status, driverId, otp }: { rideId: string; status: RideStatus; driverId?: string; otp?: string }) => {
+      console.log('[rider] RIDE_STATUS_UPDATE recebido:', { status, driverId, otp })
       setRideStatus(status)
       if (driverId) setDriverInfo(driverId)
       // Salva OTP quando motorista aceita (visível ao passageiro para informar ao motorista)
@@ -147,18 +188,25 @@ export default function HomeScreen() {
       }
     })
 
+    socket.on('RIDE_ERROR', ({ error }: { error: string }) => {
+      console.error('[rider] RIDE_ERROR recebido:', error)
+      setLoading(false)
+    })
+
     return () => {
       socket.off('connect')
       socket.off('disconnect')
       socket.off('RIDE_CREATED')
       socket.off('RIDE_STATUS_UPDATE')
       socket.off('DRIVER_LOCATION_BROADCAST')
+      socket.off('RIDE_ERROR')
     }
   }, [])
 
   async function requestRide() {
     if (!riderLocation || !destination.trim()) return
 
+    console.log('[rider] requestRide chamado — userId:', userId)
     setGeocodeError(null)
     setRouteCoords(null)
     driverFitDone.current = false
@@ -167,7 +215,9 @@ export default function HomeScreen() {
     setDriverInfo(null)
     setRideInfo(null)
 
+    console.log('[rider] PASSO 1 — geocodando destino:', destination.trim())
     const geocoded = await geocodeAddress(destination.trim())
+    console.log('[rider] PASSO 2 — geocode resultado:', geocoded)
     if (!geocoded) {
       setGeocodeError('Endereço não encontrado. Tente ser mais específico.')
       setLoading(false)
@@ -177,19 +227,22 @@ export default function HomeScreen() {
     setDestCoord({ lat: geocoded.lat, lng: geocoded.lng })
 
     const socket = getSocket()
-    socket.emit('ride:create', {
+    const payload = {
       riderId: userId,
       origin: {
         lat: riderLocation.lat,
         lng: riderLocation.lng,
-        address: originAddress ?? 'Localização atual',
+        address: originAddress ?? origin ?? 'Localização atual',
       },
       destination: {
         lat: geocoded.lat,
         lng: geocoded.lng,
         address: geocoded.address,
       },
-    })
+    }
+    console.log('[rider] PASSO 3 — emitindo ride:create:', JSON.stringify(payload))
+    socket.emit('ride:create', payload)
+    console.log('[rider] PASSO 4 — emit feito, aguardando RIDE_CREATED')
   }
 
   function resetRide() {
@@ -203,6 +256,7 @@ export default function HomeScreen() {
     setLoading(false)
     setGeocodeError(null)
     driverFitDone.current = false
+    setOrigin(originAddress ?? '')
   }
 
   const isRideActive = rideStatus !== null && rideStatus !== 'completed' && rideStatus !== 'cancelled'
@@ -295,6 +349,29 @@ export default function HomeScreen() {
         {/* Formulário de solicitação */}
         {!isRideActive && !isRideEnded && (
           <>
+            <View style={styles.originRow}>
+              <TextInput
+                style={[styles.input, styles.originInput]}
+                placeholder="De onde você sai?"
+                placeholderTextColor="#555"
+                value={origin}
+                onChangeText={setOrigin}
+                editable={!loading && !originGeocoding}
+                returnKeyType="done"
+                onSubmitEditing={applyOriginAddress}
+              />
+              <TouchableOpacity
+                style={[styles.originButton, originGeocoding && styles.requestButtonDisabled]}
+                onPress={applyOriginAddress}
+                disabled={originGeocoding || !origin.trim()}
+              >
+                {originGeocoding
+                  ? <ActivityIndicator color="#fff" size="small" />
+                  : <Text style={styles.originButtonText}>OK</Text>
+                }
+              </TouchableOpacity>
+            </View>
+
             <TextInput
               style={styles.input}
               placeholder="Para onde você quer ir?"
@@ -336,6 +413,20 @@ export default function HomeScreen() {
                 {STATUS_LABELS[rideStatus!]}
               </Text>
             </View>
+
+            {(rideStatus === 'searching_driver' || rideStatus === 'driver_assigned') && (
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={() => {
+                  if (!rideInfo?.rideId) return
+                  const socket = getSocket()
+                  socket.emit('CANCEL_RIDE', { rideId: rideInfo.rideId, cancelledBy: 'rider' })
+                  resetRide()
+                }}
+              >
+                <Text style={styles.cancelButtonText}>Cancelar corrida</Text>
+              </TouchableOpacity>
+            )}
 
             {/* Detalhes da rota (distância, tempo, tarifa) */}
             {rideInfo && (
@@ -449,6 +540,23 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 15,
   },
+  originRow: {
+    flexDirection: 'row',
+    gap: 8,
+    alignItems: 'center',
+  },
+  originInput: {
+    flex: 1,
+  },
+  originButton: {
+    backgroundColor: '#374151',
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  originButtonText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   requestButton: {
     backgroundColor: '#2563eb',
     borderRadius: 12,
@@ -529,6 +637,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   newRideButtonText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  cancelButton: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#ef4444',
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  cancelButtonText: { color: '#ef4444', fontSize: 15, fontWeight: '600' },
 })
 
 const mapStyle = [

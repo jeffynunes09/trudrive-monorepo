@@ -7,13 +7,18 @@ const rideService = new RideService()
 
 export function registerRideHandlers(socket: Socket): void {
   socket.on(SocketEvents.RIDE_CREATE, async (payload) => {
+    console.log('[WS] ride:create recebido — payload:', JSON.stringify(payload))
     try {
       const validadeRequestRide = await rideService.findByRiderId(payload.riderId)
+      console.log(`[WS] corridas existentes para rider ${payload.riderId}:`, validadeRequestRide.length, validadeRequestRide.map(r => ({ id: r._id, status: r.status })))
       if (validadeRequestRide.length > 0) {
-        return { error: 'Rider already has an active ride' }
+        console.warn('[WS] ride:create bloqueado — rider já tem corrida registrada (bug: não filtra por status ativo)')
+        socket.emit('RIDE_ERROR', { error: 'Rider already has an active ride' })
+        return
       }
 
       const { ride, driverIds } = await rideService.requestRide(payload)
+      console.log(`[WS] corrida criada: ${ride._id} | driverIds próximos: [${driverIds.join(', ')}]`)
 
       // Rider entra na sua sala de notificações
       if (payload.riderId) {
@@ -62,7 +67,8 @@ export function registerRideHandlers(socket: Socket): void {
       return { data: ride }
 
     } catch (err: any) {
-      return { error: err.message || 'Failed to create ride' }
+      console.error('[WS] ride:create erro:', err.message, err.stack)
+      socket.emit('RIDE_ERROR', { error: err.message || 'Failed to create ride' })
     }
   })
 
