@@ -34,17 +34,22 @@ const C = {
   pendingBg: '#1c1200',
 }
 
-async function uploadToS3(uri: string, folder: string): Promise<string> {
+async function uploadToS3(uri: string, folder: string): Promise<{ key: string; publicUrl: string }> {
   const ext = uri.split('.').pop()?.toLowerCase() || 'jpg'
   const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg'
 
-  const { url, key } = await getUploadUrl(folder, mimeType)
+  const { url, key, publicUrl } = await getUploadUrl(folder, mimeType)
 
-  const blob = await (await fetch(uri)).blob()
-  const res = await fetch(url, { method: 'PUT', body: blob, headers: { 'Content-Type': mimeType } })
-  if (!res.ok) throw new Error('Falha no upload para S3')
+  const fileRes = await fetch(uri)
+  const blob = await fileRes.blob()
 
-  return key
+  const s3Res = await fetch(url, { method: 'PUT', body: blob, headers: { 'Content-Type': mimeType } })
+  if (!s3Res.ok) {
+    const body = await s3Res.text()
+    throw new Error(`S3 recusou upload: ${s3Res.status} — ${body.slice(0, 200)}`)
+  }
+
+  return { key, publicUrl }
 }
 
 async function pickImage(): Promise<string | null> {
@@ -121,8 +126,8 @@ export default function ProfileScreen() {
     if (!uri) return
     setUploadingField('profileImage')
     try {
-      const key = await uploadToS3(uri, 'profile')
-      const updated = await updateMe({ profileImage: key })
+      const { publicUrl } = await uploadToS3(uri, 'profile')
+      const updated = await updateMe({ profileImage: publicUrl })
       setProfile(updated)
     } catch (err: any) {
       Alert.alert('Erro no upload', err.message)
@@ -136,8 +141,8 @@ export default function ProfileScreen() {
     if (!uri) return
     setUploadingField('driverLicenseImage')
     try {
-      const key = await uploadToS3(uri, 'driver_license')
-      const updated = await updateMe({ driverLicenseImage: key })
+      const { publicUrl } = await uploadToS3(uri, 'driver_license')
+      const updated = await updateMe({ driverLicenseImage: publicUrl })
       setProfile(updated)
       Alert.alert('Enviado!', 'CNH enviada. Aguarde aprovação do administrador.')
     } catch (err: any) {
@@ -152,8 +157,8 @@ export default function ProfileScreen() {
     if (!uri) return
     setUploadingField('vehicleDocImage')
     try {
-      const key = await uploadToS3(uri, 'vehicle_doc')
-      const updated = await updateMe({ vehicleDocImage: key })
+      const { publicUrl } = await uploadToS3(uri, 'vehicle_doc')
+      const updated = await updateMe({ vehicleDocImage: publicUrl })
       setProfile(updated)
       Alert.alert('Enviado!', 'Documento do veículo enviado. Aguarde aprovação do administrador.')
     } catch (err: any) {
@@ -168,10 +173,8 @@ export default function ProfileScreen() {
     router.replace('/')
   }
 
-  const profileImageUrl = profile?.profileImage
-    ? `https://${process.env.EXPO_PUBLIC_S3_BUCKET}.s3.amazonaws.com/${profile.profileImage}`
-    : null
-
+  const profileImageUrl = profile?.profileImage ?? null
+  console.log(`profile`, profileImageUrl)
   const isApproved = profile?.isApproved ?? false
 
   return (

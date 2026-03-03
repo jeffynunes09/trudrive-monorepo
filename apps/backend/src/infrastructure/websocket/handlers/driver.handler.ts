@@ -4,8 +4,10 @@ import { getIO, DriverSocketManager } from '../socket'
 import { addDriverLocation, removeDriverLocation, getDriverLocation } from '../../redis/redis.client'
 import { getRoute } from '../../routes/ors.client'
 import { RideService } from '../../../modules/ride/ride.service'
+import { UserService } from '../../../modules/user/user.service'
 
 const rideService = new RideService()
+const userService = new UserService()
 
 // Calcula distância em km entre dois pontos via Haversine
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
@@ -93,12 +95,26 @@ export function registerDriverHandlers(socket: Socket): void {
       socket.data.queuedRideId = rideId
       socket.data.queuedRideRiderId = queuedRide.riderId
 
+      const [driverUserQ, riderUserQ] = await Promise.all([
+        userService.findById(driverId),
+        userService.findById(queuedRide.riderId),
+      ])
+      const driverInfoQ = driverUserQ ? {
+        name: driverUserQ.name,
+        profileImage: driverUserQ.profileImage ?? null,
+        vehicleModel: driverUserQ.vehicleModel ?? null,
+        vehicleYear: driverUserQ.vehicleYear ?? null,
+        vehicleColor: driverUserQ.vehicleColor ?? null,
+        licensePlate: driverUserQ.licensePlate ?? null,
+      } : null
+
       // Notifica passageiro da segunda corrida — motorista a caminho (após finalizar a atual)
       io.to(`user:${queuedRide.riderId}`).emit(SocketEvents.RIDE_STATUS_UPDATE, {
         rideId,
         status: 'driver_assigned',
         driverId,
         otp: queuedRide.otp,
+        driverInfo: driverInfoQ,
       })
 
       console.log(`[WS] Driver ${driverId} enfileirou segunda corrida ${rideId}`)
@@ -116,12 +132,33 @@ export function registerDriverHandlers(socket: Socket): void {
     socket.data.activeRideId = rideId
     socket.data.secondRideAvailableNotified = false
 
-    // Notifica passageiro com OTP visível
+    const [driverUser, riderUser] = await Promise.all([
+      userService.findById(driverId),
+      userService.findById(updated.riderId),
+    ])
+
+    const driverInfo = driverUser ? {
+      name: driverUser.name,
+      profileImage: driverUser.profileImage ?? null,
+      vehicleModel: driverUser.vehicleModel ?? null,
+      vehicleYear: driverUser.vehicleYear ?? null,
+      vehicleColor: driverUser.vehicleColor ?? null,
+      licensePlate: driverUser.licensePlate ?? null,
+    } : null
+
+    const riderInfo = riderUser ? {
+      name: riderUser.name,
+      phone: riderUser.phone ?? null,
+      profileImage: riderUser.profileImage ?? null,
+    } : null
+
+    // Notifica passageiro com OTP + dados do motorista
     io.to(`user:${updated.riderId}`).emit(SocketEvents.RIDE_STATUS_UPDATE, {
       rideId,
       status: 'driver_assigned',
       driverId,
       otp: updated.otp,
+      driverInfo,
     })
 
     // Calcula rota da localização atual do motorista até o embarque
@@ -135,6 +172,7 @@ export function registerDriverHandlers(socket: Socket): void {
         destination: updated.origin,
         destinationRide: updated.destination,
         geometry: routeToPickup?.geometry ?? null,
+        riderInfo,
       })
     }
 

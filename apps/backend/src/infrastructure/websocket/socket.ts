@@ -7,9 +7,11 @@ import { registerRideHandlers } from './handlers/ride.handler'
 import { registerDriverHandlers } from './handlers/driver.handler'
 import { registerUserHandlers } from './handlers/user.handler'
 import { RideService } from '../../modules/ride/ride.service'
+import { UserService } from '../../modules/user/user.service'
 
 const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_in_production'
 const rideService = new RideService()
+const userService = new UserService()
 
 let io: Server
 
@@ -35,12 +37,35 @@ export async function initWebSocket(httpServer: HttpServer): Promise<Server> {
 
         const activeRide = await rideService.findActiveRideForUser(payload.userId, payload.role)
         if (activeRide) {
-          console.log(`rides`,activeRide)
           const room = payload.role === 'driver' ? `driver:${payload.userId}` : `user:${payload.userId}`
           socket.join(room)
         }
-       const res = socket.emit('RIDE_RESTORE', activeRide ?? null)
-       console.log(`res`,res)
+
+        let ridePayload: any = activeRide ? activeRide.toObject() : null
+        if (activeRide && payload.role === 'rider' && activeRide.driverId) {
+          const driverUser = await userService.findById(activeRide.driverId)
+          if (driverUser) {
+            ridePayload.driverInfo = {
+              name: driverUser.name,
+              profileImage: driverUser.profileImage ?? null,
+              vehicleModel: driverUser.vehicleModel ?? null,
+              vehicleYear: driverUser.vehicleYear ?? null,
+              vehicleColor: driverUser.vehicleColor ?? null,
+              licensePlate: driverUser.licensePlate ?? null,
+            }
+          }
+        }
+        if (activeRide && payload.role === 'driver' && activeRide.riderId) {
+          const riderUser = await userService.findById(activeRide.riderId)
+          if (riderUser) {
+            ridePayload.riderInfo = {
+              name: riderUser.name,
+              phone: riderUser.phone ?? null,
+              profileImage: riderUser.profileImage ?? null,
+            }
+          }
+        }
+        socket.emit('RIDE_RESTORE', ridePayload)
       } catch {
         socket.emit('RIDE_RESTORE', null)
       }

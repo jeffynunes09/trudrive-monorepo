@@ -3,9 +3,11 @@ import { CreateRideDto, RideService } from '../../../modules/ride/ride.service'
 import { SocketEvents } from 'shared-events'
 import { getIO, DriverSocketManager } from '../socket'
 import { rideExpiryQueue } from '../../queue/queue'
+import { UserService } from '../../../modules/user/user.service'
 
 
 const rideService = new RideService()
+const userService = new UserService()
 
 export function registerRideHandlers(socket: Socket): void {
   socket.on(SocketEvents.RIDE_CREATE, async (payload:CreateRideDto) => {
@@ -182,6 +184,30 @@ export function registerRideHandlers(socket: Socket): void {
       const room = role === 'driver' ? `driver:${userId}` : `user:${userId}`
       socket.join(room)
     }
-    socket.emit('RIDE_RESTORE', activeRide ?? null)
+    let ridePayload: any = activeRide ? activeRide.toObject() : null
+    if (activeRide && role === 'rider' && activeRide.driverId) {
+      const driverUser = await userService.findById(activeRide.driverId)
+      if (driverUser) {
+        ridePayload.driverInfo = {
+          name: driverUser.name,
+          profileImage: driverUser.profileImage ?? null,
+          vehicleModel: driverUser.vehicleModel ?? null,
+          vehicleYear: driverUser.vehicleYear ?? null,
+          vehicleColor: driverUser.vehicleColor ?? null,
+          licensePlate: driverUser.licensePlate ?? null,
+        }
+      }
+    }
+    if (activeRide && role === 'driver' && activeRide.riderId) {
+      const riderUser = await userService.findById(activeRide.riderId)
+      if (riderUser) {
+        ridePayload.riderInfo = {
+          name: riderUser.name,
+          phone: riderUser.phone ?? null,
+          profileImage: riderUser.profileImage ?? null,
+        }
+      }
+    }
+    socket.emit('RIDE_RESTORE', ridePayload)
   })
 }

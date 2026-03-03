@@ -7,6 +7,7 @@ import {
   StyleSheet,
   ActivityIndicator,
   Platform,
+  Image,
 } from 'react-native'
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, LatLng } from 'react-native-maps'
 import * as Location from 'expo-location'
@@ -19,7 +20,6 @@ import {
   saveActiveRide,
   getActiveRide,
   clearActiveRide,
-  StoredActiveRide,
 } from '../utils/storage'
 
 type RideStatus = 'searching_driver' | 'driver_assigned' | 'in_progress' | 'payment_pending' | 'paid' | 'completed' | 'cancelled'
@@ -52,6 +52,15 @@ interface RideInfo {
   otp: string | null
 }
 
+interface DriverDetails {
+  name: string
+  profileImage: string | null
+  vehicleModel: string | null
+  vehicleYear: number | null
+  vehicleColor: string | null
+  licensePlate: string | null
+}
+
 interface RestoredRide {
   id?: string
   _id?: string
@@ -66,6 +75,7 @@ interface RestoredRide {
   distance?: number
   duration?: number
   geometry?: [number, number][]
+  driverInfo?: DriverDetails
 }
 
 export default function HomeScreen() {
@@ -81,6 +91,7 @@ export default function HomeScreen() {
   const [destination, setDestination] = useState('')
   const [rideStatus, setRideStatus] = useState<RideStatus | null>(null)
   const [driverInfo, setDriverInfo] = useState<string | null>(null)
+  const [driverDetails, setDriverDetails] = useState<DriverDetails | null>(null)
   const [driverLocation, setDriverLocation] = useState<{ lat: number; lng: number } | null>(null)
   const [loading, setLoading] = useState(false)
   const [destCoord, setDestCoord] = useState<{ lat: number; lng: number } | null>(null)
@@ -196,6 +207,7 @@ export default function HomeScreen() {
         setRideStatus(null)
         setDestCoord(null)
         setDriverInfo(null)
+        setDriverDetails(null)
         setRouteCoords(null)
         return
       }
@@ -206,6 +218,7 @@ export default function HomeScreen() {
       setRideStatus(ride.status as RideStatus)
       setDestCoord({ lat: ride.destination.lat, lng: ride.destination.lng })
       if (ride.driverId) setDriverInfo(ride.driverId)
+      if (ride.driverInfo) setDriverDetails(ride.driverInfo)
       if (ride.geometry && ride.geometry.length > 0) {
         const coords: LatLng[] = ride.geometry.map(([lng, lat]) => ({ latitude: lat, longitude: lng }))
         setRouteCoords(coords)
@@ -272,9 +285,10 @@ export default function HomeScreen() {
       }
     })
 
-    socket.on('RIDE_STATUS_UPDATE', ({ status, driverId, otp }: { rideId: string; status: RideStatus; driverId?: string; otp?: string }) => {
+    socket.on('RIDE_STATUS_UPDATE', ({ status, driverId, otp, driverInfo: di }: { rideId: string; status: RideStatus; driverId?: string; otp?: string; driverInfo?: DriverDetails }) => {
       setRideStatus(status)
       if (driverId) setDriverInfo(driverId)
+      if (di) setDriverDetails(di)
       if (otp) {
         setRideInfo(prev => prev ? { ...prev, otp } : null)
       }
@@ -374,6 +388,7 @@ export default function HomeScreen() {
     clearActiveRide()
     setRideStatus(null)
     setDriverInfo(null)
+    setDriverDetails(null)
     setDriverLocation(null)
     setDestCoord(null)
     setRideInfo(null)
@@ -582,10 +597,30 @@ export default function HomeScreen() {
               </View>
             )}
 
-            {driverInfo && (
+            {driverDetails && (rideStatus === 'driver_assigned' || rideStatus === 'in_progress') && (
               <View style={styles.driverCard}>
-                <Text style={styles.driverCardLabel}>Motorista</Text>
-                <Text style={styles.driverCardValue} numberOfLines={1}>{driverInfo}</Text>
+                {driverDetails.profileImage ? (
+                  <Image source={{ uri: driverDetails.profileImage }} style={styles.driverAvatar} />
+                ) : (
+                  <View style={styles.driverAvatarPlaceholder}>
+                    <Text style={styles.driverAvatarInitial}>
+                      {driverDetails.name.charAt(0).toUpperCase()}
+                    </Text>
+                  </View>
+                )}
+                <View style={styles.driverCardInfo}>
+                  <Text style={styles.driverCardName}>{driverDetails.name}</Text>
+                  {(driverDetails.vehicleModel || driverDetails.vehicleColor) && (
+                    <Text style={styles.driverCardVehicle} numberOfLines={1}>
+                      {[driverDetails.vehicleModel, driverDetails.vehicleColor, driverDetails.vehicleYear?.toString()].filter(Boolean).join(' • ')}
+                    </Text>
+                  )}
+                  {driverDetails.licensePlate && (
+                    <View style={styles.driverPlateBadge}>
+                      <Text style={styles.driverPlateText}>{driverDetails.licensePlate.toUpperCase()}</Text>
+                    </View>
+                  )}
+                </View>
               </View>
             )}
           </View>
@@ -729,11 +764,43 @@ const styles = StyleSheet.create({
   otpCardHint: { color: '#4b5563', fontSize: 11 },
   driverCard: {
     backgroundColor: '#1f2937',
-    borderRadius: 10,
+    borderRadius: 12,
     padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    borderWidth: 1,
+    borderColor: '#374151',
   },
-  driverCardLabel: { color: '#6b7280', fontSize: 11, marginBottom: 2 },
-  driverCardValue: { color: '#e5e7eb', fontSize: 14, fontWeight: '500' },
+  driverAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#374151',
+  },
+  driverAvatarPlaceholder: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#1e3a5f',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  driverAvatarInitial: { color: '#60a5fa', fontSize: 20, fontWeight: '700' },
+  driverCardInfo: { flex: 1, gap: 2 },
+  driverCardName: { color: '#e5e7eb', fontSize: 15, fontWeight: '700' },
+  driverCardVehicle: { color: '#9ca3af', fontSize: 12 },
+  driverPlateBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#111827',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderWidth: 1,
+    borderColor: '#374151',
+    marginTop: 2,
+  },
+  driverPlateText: { color: '#e5e7eb', fontSize: 12, fontWeight: '700', letterSpacing: 1 },
   finalFareCard: {
     backgroundColor: '#0d1f3c',
     borderRadius: 12,

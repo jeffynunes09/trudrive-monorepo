@@ -119,7 +119,7 @@ export function updateMe(data: Partial<UserProfile>): Promise<UserProfile> {
   return authPatch<UserProfile>('/api/users/me', data)
 }
 
-export function getUploadUrl(folder: string, mimeType: string): Promise<{ url: string; key: string }> {
+export function getUploadUrl(folder: string, mimeType: string): Promise<{ url: string; key: string; publicUrl: string }> {
   return authPost('/api/users/me/upload-url', { folder, mimeType })
 }
 

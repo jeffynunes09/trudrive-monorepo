@@ -79,20 +79,25 @@ export class UserController {
   }
 
   async getUploadUrl(req: Request, res: Response): Promise<void> {
+    console.log('[controller] getUploadUrl | userId:', req.user?.userId, '| body:', req.body)
     try {
       const { folder, mimeType } = req.body
       const allowed = ['profile', 'driver_license', 'vehicle_doc']
       if (!folder || !allowed.includes(folder)) {
+        console.warn('[controller] getUploadUrl | pasta inválida:', folder)
         res.status(400).json({ message: 'Pasta inválida. Use: profile, driver_license ou vehicle_doc' })
         return
       }
       if (!mimeType || !mimeType.startsWith('image/')) {
+        console.warn('[controller] getUploadUrl | mimeType inválido:', mimeType)
         res.status(400).json({ message: 'mimeType inválido. Apenas imagens são permitidas.' })
         return
       }
       const result = await generatePresignedUrl(folder, mimeType)
+      console.log('[controller] getUploadUrl | retornando URL | key:', result.key)
       res.json(result)
     } catch (err: any) {
+      console.error('[controller] getUploadUrl | erro:', err.message)
       res.status(500).json({ message: err.message })
     }
   }

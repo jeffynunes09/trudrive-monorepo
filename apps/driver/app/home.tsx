@@ -8,6 +8,7 @@ import {
   Modal,
   ActivityIndicator,
   Platform,
+  Image,
 } from 'react-native'
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE, LatLng } from 'react-native-maps'
 import * as Location from 'expo-location'
@@ -38,6 +39,12 @@ interface ActiveRide {
   destination: { lat: number; lng: number; address: string }
 }
 
+interface RiderDetails {
+  name: string
+  phone: string | null
+  profileImage: string | null
+}
+
 interface RestoredRide {
   id?: string
   _id?: string
@@ -52,6 +59,7 @@ interface RestoredRide {
   distance?: number
   duration?: number
   geometry?: [number, number][]
+  riderInfo?: RiderDetails
 }
 
 type RidePhase = 'driver_assigned' | 'in_progress' | 'payment_pending' | 'paid' | 'completed' | 'cancelled' | null
@@ -74,6 +82,7 @@ export default function HomeScreen() {
   const [otpError, setOtpError] = useState(false)
   const [otpLoading, setOtpLoading] = useState(false)
 
+  const [riderDetails, setRiderDetails] = useState<RiderDetails | null>(null)
   const [canAcceptSecondRide, setCanAcceptSecondRide] = useState(false)
   const [hasQueuedRide, setHasQueuedRide] = useState(false)
 
@@ -159,12 +168,14 @@ export default function HomeScreen() {
         setActiveRide(null)
         setRidePhase(null)
         setRouteCoords(null)
+        setRiderDetails(null)
         return
       }
       const rideId = ride.id ?? (ride as any)._id?.toString() ?? ''
       const restored: ActiveRide = { rideId, origin: ride.origin, destination: ride.destination }
       setActiveRide(restored)
       setRidePhase(ride.status as RidePhase)
+      if (ride.riderInfo) setRiderDetails(ride.riderInfo)
       if (ride.geometry && ride.geometry.length > 0) {
         const coords: LatLng[] = ride.geometry.map(([lng, lat]) => ({ latitude: lat, longitude: lng }))
         setRouteCoords(coords)
@@ -189,6 +200,7 @@ export default function HomeScreen() {
       setRidePhase(status)
       if (status === 'completed' || status === 'cancelled') {
         clearActiveRide()
+        setRiderDetails(null)
         if (!hasQueuedRide) {
           setActiveRide(null)
           setRouteCoords(null)
@@ -226,6 +238,7 @@ export default function HomeScreen() {
       destination,
       destinationRide,
       geometry,
+      riderInfo,
     }: {
       rideId: string
       phase: 'to_pickup' | 'to_destination'
@@ -233,7 +246,9 @@ export default function HomeScreen() {
       destination: { lat: number; lng: number; address: string }
       destinationRide?: { lat: number; lng: number; address: string }
       geometry: [number, number][] | null
+      riderInfo?: RiderDetails
     }) => {
+      if (riderInfo) setRiderDetails(riderInfo)
       setActiveRide(prev => {
         if (!prev || prev.rideId !== rideId) {
           setCanAcceptSecondRide(false)
@@ -471,6 +486,26 @@ export default function HomeScreen() {
           </View>
         )}
 
+        {activeRide && riderDetails && (ridePhase === 'driver_assigned' || ridePhase === 'in_progress') && (
+          <View style={styles.riderCard}>
+            {riderDetails.profileImage ? (
+              <Image source={{ uri: riderDetails.profileImage }} style={styles.riderAvatar} />
+            ) : (
+              <View style={styles.riderAvatarPlaceholder}>
+                <Text style={styles.riderAvatarInitial}>
+                  {riderDetails.name.charAt(0).toUpperCase()}
+                </Text>
+              </View>
+            )}
+            <View style={styles.riderCardInfo}>
+              <Text style={styles.riderCardName}>{riderDetails.name}</Text>
+              {riderDetails.phone && (
+                <Text style={styles.riderCardPhone}>{riderDetails.phone}</Text>
+              )}
+            </View>
+          </View>
+        )}
+
         {activeRide && ridePhase === 'driver_assigned' && (
           <View style={styles.otpContainer}>
             <Text style={styles.otpLabel}>Código de embarque</Text>
@@ -675,6 +710,47 @@ const styles = StyleSheet.create({
   },
   activeRideText: {
     color: '#aaa',
+    fontSize: 13,
+  },
+  riderCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: '#1a1a2e',
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#2a2a4a',
+  },
+  riderAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+  },
+  riderAvatarPlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#2563eb',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  riderAvatarInitial: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: '700',
+  },
+  riderCardInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  riderCardName: {
+    color: '#e5e5e5',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  riderCardPhone: {
+    color: '#888',
     fontSize: 13,
   },
   otpContainer: {

@@ -32,14 +32,22 @@ const C = {
   errorBorder: '#7f1d1d',
 }
 
-async function uploadToS3(uri: string, folder: string): Promise<string> {
+async function uploadToS3(uri: string, folder: string): Promise<{ key: string; publicUrl: string }> {
   const ext = uri.split('.').pop()?.toLowerCase() || 'jpg'
   const mimeType = ext === 'png' ? 'image/png' : 'image/jpeg'
-  const { url, key } = await getUploadUrl(folder, mimeType)
-  const blob = await (await fetch(uri)).blob()
-  const res = await fetch(url, { method: 'PUT', body: blob, headers: { 'Content-Type': mimeType } })
-  if (!res.ok) throw new Error('Falha no upload para S3')
-  return key
+
+  const { url, key, publicUrl } = await getUploadUrl(folder, mimeType)
+
+  const fileRes = await fetch(uri)
+  const blob = await fileRes.blob()
+
+  const s3Res = await fetch(url, { method: 'PUT', body: blob, headers: { 'Content-Type': mimeType } })
+  if (!s3Res.ok) {
+    const body = await s3Res.text()
+    throw new Error(`S3 recusou upload: ${s3Res.status} — ${body.slice(0, 200)}`)
+  }
+
+  return { key, publicUrl }
 }
 
 async function pickImage(): Promise<string | null> {
@@ -100,8 +108,8 @@ export default function ProfileScreen() {
     if (!uri) return
     setUploadingAvatar(true)
     try {
-      const key = await uploadToS3(uri, 'profile')
-      const updated = await updateMe({ profileImage: key })
+      const { publicUrl } = await uploadToS3(uri, 'profile')
+      const updated = await updateMe({ profileImage: publicUrl })
       setProfile(updated)
     } catch (err: any) {
       Alert.alert('Erro no upload', err.message)
@@ -115,9 +123,8 @@ export default function ProfileScreen() {
     router.replace('/login')
   }
 
-  const profileImageUrl = profile?.profileImage
-    ? `https://${process.env.EXPO_PUBLIC_S3_BUCKET}.s3.amazonaws.com/${profile.profileImage}`
-    : null
+  const profileImageUrl = profile?.profileImage ?? null
+  console.log('[profile] profileImageUrl:', profileImageUrl)
 
   return (
     <SafeAreaView style={styles.container}>
@@ -143,7 +150,12 @@ export default function ProfileScreen() {
                 <ActivityIndicator color={C.primary} />
               </View>
             ) : profileImageUrl ? (
-              <Image source={{ uri: profileImageUrl }} style={styles.avatarImg} />
+              <Image
+                source={{ uri: profileImageUrl }}
+                style={styles.avatarImg}
+                onError={(e) => console.error('[profile] Image onError:', e.nativeEvent.error, '| url:', profileImageUrl)}
+                onLoad={() => console.log('[profile] Image carregou com sucesso')}
+              />
             ) : (
               <View style={styles.avatar}>
                 <Ionicons name="person" size={44} color={C.primary} />
