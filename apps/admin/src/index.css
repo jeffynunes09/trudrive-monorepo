@@ -1,68 +1,73 @@
-:root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+@import "tailwindcss";
 
-  color-scheme: light dark;
-  color: rgba(255, 255, 255, 0.87);
-  background-color: #242424;
+@theme {
+  /* ── Color Tokens (Design System) ── */
+  --color-background: hsl(226 44% 9%);
+  --color-foreground: hsl(210 40% 96%);
+  --color-primary: hsl(180 75% 52%);
+  --color-primary-foreground: hsl(226 44% 9%);
+  --color-muted: hsl(226 35% 16%);
+  --color-muted-foreground: hsl(210 20% 55%);
+  --color-card: hsl(226 40% 13%);
+  --color-border: hsl(226 35% 20%);
+  --color-navy-input: hsl(226 36% 20%);
+  --color-danger: hsl(0 72% 51%);
+  --color-success: hsl(142 71% 45%);
+  --color-warning: hsl(38 92% 50%);
 
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  /* ── Typography ── */
+  --font-sans: "Space Grotesk", system-ui, sans-serif;
+  --font-ui: "Inter", system-ui, sans-serif;
+
+  /* ── Border Radius ── */
+  --radius-card: 1rem;
+  --radius-btn: calc(1rem - 2px);
+  --radius-full: 9999px;
+}
+
+/* ── Base ── */
+*, *::before, *::after {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--color-background);
+  color: var(--color-foreground);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-a {
-  font-weight: 500;
-  color: #646cff;
-  text-decoration: inherit;
+/* ── Scrollbar ── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
-a:hover {
-  color: #535bf2;
+::-webkit-scrollbar-track {
+  background: var(--color-muted);
 }
-
-body {
-  margin: 0;
-  display: flex;
-  place-items: center;
-  min-width: 320px;
-  min-height: 100vh;
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
 }
-
-h1 {
-  font-size: 3.2em;
-  line-height: 1.1;
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-primary);
 }
 
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
+/* ── Utilities ── */
+.gradient-teal {
+  background: linear-gradient(135deg, hsl(180 75% 45%), hsl(195 80% 52%));
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    color: #213547;
-    background-color: #ffffff;
-  }
-  a:hover {
-    color: #747bff;
-  }
-  button {
-    background-color: #f9f9f9;
-  }
+.btn-teal-glow {
+  box-shadow: 0 8px 32px -8px hsl(180 75% 52% / 0.4);
+}
+
+.logo-glow {
+  box-shadow: 0 0 32px hsl(180 75% 52% / 0.4);
 }

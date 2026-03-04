@@ -1,0 +1,38 @@
+<context>
+    <project>
+        <name>Jndrive-monorepo</name>
+        <module></module>
+        <description>
+        </description>
+    </project>
+
+    <references>
+        <architecture_diagram>
+        </architecture_diagram>
+
+        <design_system>
+        </design_system>
+    </references>
+
+    <constraints>
+        <architecture_patterns>
+            Clean Architecture
+        </architecture_patterns>
+
+        <code_principles>
+        </code_principles>
+    </constraints>
+</context>
+
+<task>
+    <objective>
+    </objective>
+
+    <deliverables>
+
+    </deliverables>
+
+    <requirements>
+
+    </requirements>
+</task>
