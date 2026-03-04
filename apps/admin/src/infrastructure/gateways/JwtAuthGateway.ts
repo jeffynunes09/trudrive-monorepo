@@ -26,10 +26,10 @@ export class JwtAuthGateway implements IAuthGateway {
     this.storage.set(TOKEN_KEY, response.token)
 
     const user: UserDto = {
-      id: response.user.id,
-      name: response.user.name,
-      email: response.user.email,
-      role: response.user.role as UserDto['role'],
+      id: response?.user?.id,
+      name: response?.user?.name,
+      email: response?.user?.email,
+      role: response?.user?.role as UserDto['role'],
       isActive: true,
       isApproved: true,
       createdAt: new Date().toISOString(),
