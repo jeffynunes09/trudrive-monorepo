@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: trudrive-admin
+    runtime: static
+    buildCommand: npm install -g pnpm && pnpm install --frozen-lockfile && pnpm --filter admin build
+    staticPublishPath: apps/admin/dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
