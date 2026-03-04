@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AuthGuard } from './AuthGuard'
 import { LoginPage } from '../pages/LoginPage'
+import { UnauthorizedPage } from '../pages/UnauthorizedPage'
 import { DashboardPage } from '../pages/DashboardPage'
 import { UsersPage } from '../pages/UsersPage'
 import { DriversPage } from '../pages/DriversPage'
@@ -11,6 +12,10 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <LoginPage />,
+  },
+  {
+    path: '/unauthorized',
+    element: <UnauthorizedPage />,
   },
   {
     element: <AuthGuard />,
