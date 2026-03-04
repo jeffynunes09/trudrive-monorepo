@@ -35,7 +35,7 @@ async function bootstrap() {
   await connectDatabase()
   await initWebSocket(httpServer)
 
-  const PORT =3001
+  const PORT = process.env.PORT || 3000
   httpServer.listen(PORT, () => {
     console.log(`[Server] Running on port ${PORT}`)
   })
