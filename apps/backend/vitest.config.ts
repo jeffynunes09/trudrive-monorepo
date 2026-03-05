@@ -9,6 +9,7 @@ export default defineConfig({
     typecheck: {
       tsconfig: './tsconfig.test.json',
     },
+    setupFiles: ['./src/__tests__/setup-env.ts'],
   },
   resolve: {
     alias: {
