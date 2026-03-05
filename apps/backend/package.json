@@ -6,6 +6,9 @@
     "dev": "nodemon --exec ts-node src/app.ts",
     "build": "tsc",
     "start": "node dist/app.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "worker:notify": "ts-node src/workers/notifyDrivers.worker.ts",
     "worker:payment": "ts-node src/workers/payment.worker.ts",
     "seed": "ts-node src/seeds/seed.ts"
@@ -39,6 +42,8 @@
     "nodemon": "^2.0.22",
     "ts-node": "^10.9.0",
     "typescript": "^5.8.2",
-    "socket.io-client": "^4.8.1"
+    "socket.io-client": "^4.8.1",
+    "vitest": "^2.0.0",
+    "@vitest/coverage-v8": "^2.0.0"
   }
 }

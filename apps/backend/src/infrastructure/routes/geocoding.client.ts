@@ -14,7 +14,7 @@ const NOMINATIM = 'https://nominatim.openstreetmap.org'
  */
 export async function forwardGeocode(text: string): Promise<GeocodeResult | null> {
   try {
-    const query = text.toLowerCase().includes('brasil') ? text : `${text}, Brasil`
+    const query = text.toLowerCase().includes('brasil') ? text.toLowerCase() : `${text}, Brasil`
     const response = await axios.get(`${NOMINATIM}/search`, {
       params: { q: query, format: 'json', limit: 1 },
       headers: { 'User-Agent': 'TruDrive/1.0' },

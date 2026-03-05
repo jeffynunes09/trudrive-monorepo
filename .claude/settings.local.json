@@ -32,7 +32,8 @@
       "Bash(wait bsdz9fs1x)",
       "Bash(grep -r \"pushToken\\\\|playerId\\\\|expo-notifications\" --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.js\" --include=\"*.json\" 2>/dev/null | grep -v node_modules | head -50)",
       "Bash(grep -r \"import.*OneSignal\\\\|from.*onesignal\\\\|from.*one-signal\" --include=\"*.ts\" --include=\"*.tsx\" --include=\"*.js\" 2>/dev/null | grep -v node_modules)",
-      "Bash(CI=true pnpm install --filter driver --filter rider 2>&1 | tail -8)"
+      "Bash(CI=true pnpm install --filter driver --filter rider 2>&1 | tail -8)",
+      "Bash(CI=true pnpm --filter backend install 2>&1 | tail -20)"
     ]
   }
 }

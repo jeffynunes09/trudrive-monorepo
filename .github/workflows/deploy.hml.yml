@@ -1,0 +1,164 @@
+name: Deploy Homologacao
+
+on:
+  push:
+    branches:
+      - dev
+
+concurrency:
+  group: deploy-hml
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '9'
+
+jobs:
+  # ─────────────────────────────────────────────────────────
+  # 1. TESTES E BUILD CHECK — obrigatorio antes de qualquer deploy
+  # ─────────────────────────────────────────────────────────
+  test:
+    name: Testes e Verificacao de Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
+
+      - name: Instalar pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: Build shared packages
+        run: |
+          pnpm --filter shared-types build
+          pnpm --filter shared-events build
+          pnpm --filter shared-config build
+
+      - name: Verificar tipos do backend (TypeScript)
+        run: pnpm --filter backend exec tsc --noEmit
+
+      - name: Rodar testes do admin
+        run: pnpm --filter admin test --run
+
+      - name: Build do admin (verifica se compila sem erros)
+        env:
+          VITE_API_URL: ${{ secrets.HML_VITE_API_URL }}
+          VITE_S3_BASE_URL: ${{ secrets.HML_VITE_S3_BASE_URL }}
+        run: pnpm --filter admin build
+
+      - name: Upload do build do admin
+        uses: actions/upload-artifact@v4
+        with:
+          name: admin-dist-hml
+          path: apps/admin/dist/
+          retention-days: 1
+
+  # ─────────────────────────────────────────────────────────
+  # 2. DEPLOY BACKEND — servidor de homologacao via SSH + Docker
+  # ─────────────────────────────────────────────────────────
+  deploy-backend:
+    name: Deploy Backend (Homologacao)
+    runs-on: ubuntu-latest
+    needs: test
+    environment: homologacao
+    steps:
+      - name: Checkout codigo
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HML_SSH_HOST }}
+          username: ${{ secrets.HML_SSH_USER }}
+          key: ${{ secrets.HML_SSH_KEY }}
+          port: ${{ secrets.HML_SSH_PORT || 22 }}
+          script: |
+            set -e
+
+            echo "==> Atualizando codigo (branch dev)..."
+            cd ${{ secrets.HML_APP_DIR }}
+            git fetch origin dev
+            git checkout dev
+            git pull origin dev
+
+            echo "==> Rebuild e restart do container de homologacao..."
+            docker compose -f infra/docker-compose.yml up -d --build --remove-orphans backend
+
+            echo "==> Aguardando backend subir..."
+            sleep 10
+
+            echo "==> Verificando saude do servico..."
+            curl -f http://localhost:3000/health || (echo "ERRO: backend nao respondeu" && exit 1)
+
+            echo "==> Limpando imagens antigas..."
+            docker image prune -f
+
+            echo "Deploy de homologacao do backend concluido."
+
+  # ─────────────────────────────────────────────────────────
+  # 3. DEPLOY ADMIN — painel estático de homologacao
+  # ─────────────────────────────────────────────────────────
+  deploy-admin:
+    name: Deploy Admin (Homologacao)
+    runs-on: ubuntu-latest
+    needs: test
+    environment: homologacao
+    steps:
+      - name: Baixar build do admin
+        uses: actions/download-artifact@v4
+        with:
+          name: admin-dist-hml
+          path: dist/
+
+      # ── Opcao A: copiar para servidor via SCP ──────────────
+      - name: Deploy do admin via SCP
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.HML_SSH_HOST }}
+          username: ${{ secrets.HML_SSH_USER }}
+          key: ${{ secrets.HML_SSH_KEY }}
+          port: ${{ secrets.HML_SSH_PORT || 22 }}
+          source: 'dist/'
+          target: ${{ secrets.HML_ADMIN_WEB_DIR }}
+          strip_components: 1
+          overwrite: true
+
+      # ── Opcao B: Render.com deploy hook (descomentar se usar Render) ──
+      # - name: Trigger Render deploy (hml)
+      #   run: |
+      #     curl -s -X POST "${{ secrets.RENDER_HML_DEPLOY_HOOK }}" | \
+      #       python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id','ok'))"
+
+  # ─────────────────────────────────────────────────────────
+  # 4. NOTIFICACAO — informa resultado do deploy
+  # ─────────────────────────────────────────────────────────
+  notify:
+    name: Notificar Resultado
+    runs-on: ubuntu-latest
+    needs: [deploy-backend, deploy-admin]
+    if: always()
+    steps:
+      - name: Notificar sucesso
+        if: needs.deploy-backend.result == 'success' && needs.deploy-admin.result == 'success'
+        run: |
+          echo "Deploy de HOMOLOGACAO concluido com sucesso."
+          echo "Backend: ${{ needs.deploy-backend.result }}"
+          echo "Admin:   ${{ needs.deploy-admin.result }}"
+
+      - name: Notificar falha
+        if: needs.deploy-backend.result == 'failure' || needs.deploy-admin.result == 'failure'
+        run: |
+          echo "FALHA no deploy de HOMOLOGACAO!"
+          echo "Backend: ${{ needs.deploy-backend.result }}"
+          echo "Admin:   ${{ needs.deploy-admin.result }}"
+          exit 1
