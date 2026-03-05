@@ -49,6 +49,14 @@ export const SocketEvents = {
 
   // Chat
   CHAT_MESSAGE: 'CHAT_MESSAGE',
+
+  // Admin → Driver
+  DRIVER_APPROVED: 'driver:approved',
+
+  // Rating
+  RATE_DRIVER: 'RATE_DRIVER',
+  RATE_DRIVER_SUCCESS: 'RATE_DRIVER_SUCCESS',
+  RATE_DRIVER_ERROR: 'RATE_DRIVER_ERROR',
 } as const
 
 export type SocketEvent = (typeof SocketEvents)[keyof typeof SocketEvents]

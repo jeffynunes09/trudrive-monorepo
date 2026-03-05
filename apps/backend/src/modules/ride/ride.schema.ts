@@ -37,6 +37,9 @@ export interface IRide extends Document {
   completedAt?: Date
   cancelledAt?: Date
   cancelledBy?: 'rider' | 'driver' | 'admin'
+  cancellationFee?: number         // taxa cobrada por cancelamento após embarque
+  secondRideNotified?: boolean     // flag persistida: motorista recebeu aviso de segunda corrida disponível
+  driverRating?: number            // avaliação do motorista pelo passageiro (1-5)
   createdAt: Date
   updatedAt: Date
 }
@@ -71,8 +74,17 @@ const RideSchema = new Schema<IRide>(
     completedAt: { type: Date },
     cancelledAt: { type: Date },
     cancelledBy: { type: String, enum: ['rider', 'driver', 'admin'] },
+    cancellationFee: { type: Number },
+    secondRideNotified: { type: Boolean, default: false },
+    driverRating: { type: Number, min: 1, max: 5 },
   },
   { timestamps: true }
 )
+
+// Índices para queries comuns — evita full collection scan
+RideSchema.index({ riderId: 1, status: 1 })
+RideSchema.index({ driverId: 1, status: 1 })
+RideSchema.index({ status: 1, createdAt: -1 })
+RideSchema.index({ createdAt: -1 })
 
 export const Ride = model<IRide>('Ride', RideSchema)

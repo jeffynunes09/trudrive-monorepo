@@ -18,6 +18,7 @@ export interface IUser extends Document {
   driverLicenseImage?: string  // S3 key
   vehicleDocImage?: string     // S3 key
   pushToken?: string
+  averageRating?: number       // média de avaliações do motorista (1-5)
   createdAt: Date
   updatedAt: Date
 }
@@ -40,8 +41,12 @@ const UserSchema = new Schema<IUser>(
     driverLicenseImage: { type: String },
     vehicleDocImage: { type: String },
     pushToken: { type: String },
+    averageRating: { type: Number },
   },
   { timestamps: true }
 )
+
+// Índice para listagens de admin: filtragem por role/aprovação/ativo
+UserSchema.index({ role: 1, isApproved: 1, isActive: 1 })
 
 export const User = model<IUser>('User', UserSchema)

@@ -5,27 +5,53 @@ import { getIO, DriverSocketManager } from '../socket'
 import { rideExpiryQueue } from '../../queue/queue'
 import { UserService } from '../../../modules/user/user.service'
 import { sendPushNotification } from '../../../modules/notification/notification.service'
+import { User } from '../../../modules/user/user.schema'
+import { Ride } from '../../../modules/ride/ride.schema'
+import { logger } from '../../logger'
 
 
 const rideService = new RideService()
 const userService = new UserService()
 
+function isValidCoordinate(lat: unknown, lng: unknown): boolean {
+  return (
+    typeof lat === 'number' && typeof lng === 'number' &&
+    lat >= -90 && lat <= 90 &&
+    lng >= -180 && lng <= 180
+  )
+}
+
 export function registerRideHandlers(socket: Socket): void {
-  socket.on(SocketEvents.RIDE_CREATE, async (payload:CreateRideDto) => {
-    console.log('[WS] ride:create recebido — payload:', JSON.stringify(payload))
+  socket.on(SocketEvents.RIDE_CREATE, async (payload: CreateRideDto) => {
+    logger.info('ride:create recebido', { riderId: payload.riderId })
     try {
+      // A3: Valida coordenadas antes de processar
+      if (!payload.riderId) {
+        socket.emit('RIDE_ERROR', { error: 'riderId é obrigatório' })
+        return
+      }
+      if (!isValidCoordinate(payload.origin?.lat, payload.origin?.lng) ||
+          !isValidCoordinate(payload.destination?.lat, payload.destination?.lng)) {
+        socket.emit('RIDE_ERROR', { error: 'Coordenadas de origem ou destino inválidas' })
+        return
+      }
+      if (!payload.origin?.address || !payload.destination?.address) {
+        socket.emit('RIDE_ERROR', { error: 'Endereços de origem e destino são obrigatórios' })
+        return
+      }
+
       const activeRides = await rideService.findAll({ riderId: payload.riderId, status: 'searching_driver' })
       const driverAssignedRides = await rideService.findAll({ riderId: payload.riderId, status: 'driver_assigned' })
       const inProgressRides = await rideService.findAll({ riderId: payload.riderId, status: 'in_progress' })
       const hasActive = activeRides.length > 0 || driverAssignedRides.length > 0 || inProgressRides.length > 0
       if (hasActive) {
-        console.warn('[WS] ride:create bloqueado — rider já tem corrida ativa')
+        logger.warn('ride:create bloqueado — rider já tem corrida ativa', { riderId: payload.riderId })
         socket.emit('RIDE_ERROR', { error: 'Você já possui uma corrida em andamento' })
         return
       }
 
       const { ride, driverIds } = await rideService.requestRide(payload)
-      console.log(`[WS] corrida criada: ${ride._id} | driverIds próximos: [${driverIds.join(', ')}]`)
+      logger.info('Corrida criada', { rideId: ride.id, nearbyDrivers: driverIds.length })
 
       await rideExpiryQueue.add('expire', { rideId: ride.id }, { delay: 60_000 })
 
@@ -84,11 +110,11 @@ export function registerRideHandlers(socket: Socket): void {
         geometry: ride.geometry ?? null,
       })
 
-      console.log(`[WS] Ride ${ride.id} — drivers notificados: [${notifiedDrivers.join(', ')}]`)
+      logger.info('Drivers notificados', { rideId: ride.id, count: notifiedDrivers.length })
       return { data: ride }
 
     } catch (err: any) {
-      console.error('[WS] ride:create erro:', err.message, err.stack)
+      logger.error('ride:create erro', { error: err.message })
       socket.emit('RIDE_ERROR', { error: err.message || 'Failed to create ride' })
     }
   })
@@ -133,32 +159,38 @@ export function registerRideHandlers(socket: Socket): void {
   })
 
   socket.on(SocketEvents.CANCEL_RIDE, async ({ rideId, cancelledBy }: { rideId: string; cancelledBy: 'rider' | 'driver' }) => {
-    console.log(`[WS] CANCEL_RIDE — rideId: ${rideId}, por: ${cancelledBy}`)
+    logger.info('CANCEL_RIDE recebido', { rideId, cancelledBy })
     try {
       const ride = await rideService.findById(rideId)
       if (!ride) {
-        console.warn(`[WS] CANCEL_RIDE — corrida ${rideId} não encontrada`)
+        logger.warn('CANCEL_RIDE — corrida não encontrada', { rideId })
         return
       }
 
-      const cancellableStatuses = ['searching_driver', 'driver_assigned']
+      const CANCELLATION_FEE = 5.0
+      const cancellableStatuses = ['searching_driver', 'driver_assigned', 'in_progress']
       if (!cancellableStatuses.includes(ride.status)) {
-        console.warn(`[WS] CANCEL_RIDE — status '${ride.status}' não pode ser cancelado`)
+        logger.warn('CANCEL_RIDE — status inválido', { rideId, status: ride.status })
         return
       }
+
+      // M4: taxa de cancelamento quando corrida já está em andamento
+      const cancellationFee = ride.status === 'in_progress' ? CANCELLATION_FEE : undefined
 
       await rideService.update(rideId, {
         status: 'cancelled',
         cancelledBy,
         cancelledAt: new Date(),
+        ...(cancellationFee !== undefined && { cancellationFee }),
       })
 
       const io = getIO()
 
-      // Notifica o rider
+      // Notifica o rider (inclui taxa se aplicável)
       io.to(`user:${ride.riderId}`).emit(SocketEvents.RIDE_STATUS_UPDATE, {
         rideId,
         status: 'cancelled',
+        ...(cancellationFee !== undefined && { cancellationFee }),
       })
 
       // Se já tinha motorista, notifica ele também e limpa estado no socket
@@ -212,16 +244,77 @@ export function registerRideHandlers(socket: Socket): void {
         }
       }
 
-      console.log(`[WS] Corrida ${rideId} cancelada por ${cancelledBy}`)
+      logger.info('Corrida cancelada', { rideId, cancelledBy, cancellationFee })
     } catch (err: any) {
-      console.error('[WS] CANCEL_RIDE erro:', err.message)
+      logger.error('CANCEL_RIDE erro', { rideId, error: err.message })
+    }
+  })
+
+  // L2: Rider avalia o motorista após corrida concluída
+  socket.on('RATE_DRIVER', async ({ rideId, rating }: { rideId: string; rating: number }) => {
+    try {
+      const userId = socket.data.userId as string | undefined
+      if (!userId) return
+      if (!rating || rating < 1 || rating > 5) {
+        socket.emit('RATE_DRIVER_ERROR', { error: 'Avaliação deve ser entre 1 e 5' })
+        return
+      }
+
+      const ride = await Ride.findOneAndUpdate(
+        { _id: rideId, riderId: userId, status: 'completed', driverRating: { $exists: false } },
+        { driverRating: rating },
+        { new: true },
+      )
+      if (!ride) {
+        socket.emit('RATE_DRIVER_ERROR', { error: 'Corrida não encontrada ou já avaliada' })
+        return
+      }
+
+      // Recalcula média de avaliação do motorista
+      const stats = await Ride.aggregate([
+        { $match: { driverId: ride.driverId, driverRating: { $exists: true, $ne: null } } },
+        { $group: { _id: null, avg: { $avg: '$driverRating' }, count: { $sum: 1 } } },
+      ])
+      if (stats.length > 0 && ride.driverId) {
+        await User.findByIdAndUpdate(ride.driverId, {
+          averageRating: Math.round(stats[0].avg * 10) / 10,
+        })
+      }
+
+      socket.emit('RATE_DRIVER_SUCCESS', { rideId, rating })
+      logger.info('Motorista avaliado', { rideId, driverId: ride.driverId, rating })
+    } catch (err: any) {
+      logger.error('RATE_DRIVER erro', { rideId, error: err.message })
+    }
+  })
+
+  // L3: Chat entre rider e driver na corrida ativa
+  socket.on(SocketEvents.CHAT_MESSAGE, async ({ rideId, message }: { rideId: string; message: string }) => {
+    try {
+      const userId = socket.data.userId as string | undefined
+      const role = socket.data.role as string | undefined
+      if (!userId || !message?.trim()) return
+
+      const ride = await rideService.findById(rideId)
+      if (!ride) return
+
+      const io = getIO()
+      const payload = { rideId, message: message.trim(), senderRole: role, from: userId, at: new Date().toISOString() }
+
+      if (role === 'rider' && ride.driverId) {
+        io.to(`driver:${ride.driverId}`).emit(SocketEvents.CHAT_MESSAGE, payload)
+      } else if (role === 'driver' && ride.riderId) {
+        io.to(`user:${ride.riderId}`).emit(SocketEvents.CHAT_MESSAGE, payload)
+      }
+    } catch (err: any) {
+      logger.error('CHAT_MESSAGE erro', { rideId, error: err.message })
     }
   })
 
   socket.on(SocketEvents.USER_ONLINE, async ({ userId, role }: { userId: string; role: 'rider' | 'driver' }) => {
     socket.data.userId = userId
     socket.join(`${role}:${userId}`)
-    console.log(`[WS] ${role} ${userId} joined room`)
+    logger.debug('User joined room', { userId, role })
   })
 
   socket.on(SocketEvents.GET_RIDE_STATE, async () => {

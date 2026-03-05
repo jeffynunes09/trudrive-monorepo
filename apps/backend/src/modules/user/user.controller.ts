@@ -1,6 +1,9 @@
 import { Request, Response } from 'express'
 import { UserService } from './user.service'
 import { generatePresignedUrl } from '../upload/upload.service'
+import { getIO } from '../../infrastructure/websocket/socket'
+import { sendPushNotification } from '../notification/notification.service'
+import { logger } from '../../infrastructure/logger'
 
 const userService = new UserService()
 
@@ -79,25 +82,21 @@ export class UserController {
   }
 
   async getUploadUrl(req: Request, res: Response): Promise<void> {
-    console.log('[controller] getUploadUrl | userId:', req.user?.userId, '| body:', req.body)
     try {
       const { folder, mimeType } = req.body
       const allowed = ['profile', 'driver_license', 'vehicle_doc']
       if (!folder || !allowed.includes(folder)) {
-        console.warn('[controller] getUploadUrl | pasta inválida:', folder)
         res.status(400).json({ message: 'Pasta inválida. Use: profile, driver_license ou vehicle_doc' })
         return
       }
       if (!mimeType || !mimeType.startsWith('image/')) {
-        console.warn('[controller] getUploadUrl | mimeType inválido:', mimeType)
         res.status(400).json({ message: 'mimeType inválido. Apenas imagens são permitidas.' })
         return
       }
       const result = await generatePresignedUrl(folder, mimeType)
-      console.log('[controller] getUploadUrl | retornando URL | key:', result.key)
       res.json(result)
     } catch (err: any) {
-      console.error('[controller] getUploadUrl | erro:', err.message)
+      logger.error('getUploadUrl erro', { error: err.message, userId: req.user?.userId })
       res.status(500).json({ message: err.message })
     }
   }
@@ -123,6 +122,59 @@ export class UserController {
         return
       }
       res.status(204).send()
+    } catch (err: any) {
+      res.status(500).json({ message: err.message })
+    }
+  }
+
+  // A4: Aprovação de motorista com notificação imediata
+  async approveDriver(req: Request, res: Response): Promise<void> {
+    try {
+      const user = await userService.update(req.params.id, { isApproved: true })
+      if (!user) {
+        res.status(404).json({ message: 'Usuário não encontrado' })
+        return
+      }
+
+      // Notifica via WebSocket se o driver estiver online
+      try {
+        const io = getIO()
+        io.to(`driver:${req.params.id}`).emit('driver:approved', {
+          userId: req.params.id,
+          message: 'Sua conta foi aprovada! Você já pode aceitar corridas.',
+        })
+      } catch {
+        // socket pode não estar inicializado em testes
+      }
+
+      // Envia push notification
+      if (user.pushToken) {
+        await sendPushNotification({
+          pushTokens: [user.pushToken],
+          title: 'Conta aprovada!',
+          body: 'Sua conta de motorista foi aprovada. Você já pode aceitar corridas.',
+          data: { type: 'driver_approved' },
+        })
+      }
+
+      logger.info('Driver aprovado', { driverId: req.params.id, approvedBy: req.user?.userId })
+      res.json(user)
+    } catch (err: any) {
+      logger.error('approveDriver erro', { error: err.message })
+      res.status(500).json({ message: err.message })
+    }
+  }
+
+  // A4: Desativação de usuário
+  async deactivateUser(req: Request, res: Response): Promise<void> {
+    try {
+      const user = await userService.update(req.params.id, { isActive: false })
+      if (!user) {
+        res.status(404).json({ message: 'Usuário não encontrado' })
+        return
+      }
+      logger.info('Usuário desativado', { userId: req.params.id, by: req.user?.userId })
+      res.json(user)
     } catch (err: any) {
       res.status(500).json({ message: err.message })
     }

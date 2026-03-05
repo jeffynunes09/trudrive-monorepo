@@ -1,11 +1,20 @@
 import { Socket } from 'socket.io'
 import { SocketEvents } from 'shared-events'
 import { getIO, DriverSocketManager } from '../socket'
-import { addDriverLocation, removeDriverLocation, getDriverLocation } from '../../redis/redis.client'
+import {
+  addDriverLocation,
+  removeDriverLocation,
+  getDriverLocation,
+  setDriverState,
+  getDriverState,
+  clearDriverState,
+  clearDriverStateField,
+} from '../../redis/redis.client'
 import { getRoute } from '../../routes/ors.client'
 import { RideService } from '../../../modules/ride/ride.service'
 import { UserService } from '../../../modules/user/user.service'
 import { sendPushNotification } from '../../../modules/notification/notification.service'
+import { logger } from '../../logger'
 
 const rideService = new RideService()
 const userService = new UserService()
@@ -31,9 +40,27 @@ export function registerDriverHandlers(socket: Socket): void {
       socket.join(`driver:${driverId}`)
       DriverSocketManager.add(driverId, socket)
       await addDriverLocation(driverId, lat, lng)
-      console.log(`[WS] Driver ${driverId} online at (${lat}, ${lng})`)
+
+      // M5: Restaura estado persistido do Redis (suporta múltiplas instâncias)
+      const savedState = await getDriverState(driverId)
+      if (savedState) {
+        if (savedState.activeRideId) socket.data.activeRideId = savedState.activeRideId
+        if (savedState.activeRideRiderId) socket.data.activeRideRiderId = savedState.activeRideRiderId
+        if (savedState.queuedRideId) socket.data.queuedRideId = savedState.queuedRideId
+        if (savedState.queuedRideRiderId) socket.data.queuedRideRiderId = savedState.queuedRideRiderId
+      }
+
+      // A5: Restaura flag secondRideNotified do banco de dados
+      if (socket.data.activeRideId) {
+        const activeRide = await rideService.findById(socket.data.activeRideId as string)
+        if (activeRide?.secondRideNotified) {
+          socket.data.secondRideAvailableNotified = true
+        }
+      }
+
+      logger.info('Driver online', { driverId, lat, lng })
     } catch (err: any) {
-      console.error(`[WS] DRIVER_ONLINE error for ${driverId}:`, err.message)
+      logger.error('DRIVER_ONLINE error', { driverId, error: err.message })
     }
   })
 
@@ -41,7 +68,8 @@ export function registerDriverHandlers(socket: Socket): void {
     socket.leave(`driver:${driverId}`)
     DriverSocketManager.remove(driverId)
     await removeDriverLocation(driverId)
-    console.log(`[WS] Driver ${driverId} offline`)
+    await clearDriverState(driverId)
+    logger.info('Driver offline', { driverId })
   })
 
   socket.on(SocketEvents.DRIVER_LOCATION_UPDATE, async ({ driverId, lat, lng }: { driverId: string; lat: number; lng: number }) => {
@@ -64,8 +92,10 @@ export function registerDriverHandlers(socket: Socket): void {
         const distKm = haversineKm(lat, lng, ride.destination.lat, ride.destination.lng)
         if (distKm < 3) {
           socket.data.secondRideAvailableNotified = true
+          // A5: persiste flag no banco para sobreviver a reconexões
+          await rideService.update(activeRideId, { secondRideNotified: true })
           socket.emit(SocketEvents.SECOND_RIDE_AVAILABLE, { rideId: activeRideId })
-          console.log(`[WS] Driver ${driverId} — segunda corrida disponível (${distKm.toFixed(2)}km do destino)`)
+          logger.info('Segunda corrida disponível', { driverId, rideId: activeRideId, distKm: distKm.toFixed(2) })
         }
       }
     }
@@ -78,7 +108,7 @@ export function registerDriverHandlers(socket: Socket): void {
     if (!accepted) {
       // Blacklist: corrida não pode mais aparecer para este motorista
       await rideService.rejectByDriver(rideId, driverId)
-      console.log(`[WS] Driver ${driverId} recusou corrida ${rideId}`)
+      logger.info('Driver recusou corrida', { driverId, rideId })
       return
     }
 
@@ -89,12 +119,19 @@ export function registerDriverHandlers(socket: Socket): void {
     if (activeRideId && secondRideAvailable) {
       const queuedRide = await rideService.acceptRide(rideId, driverId)
       if (!queuedRide) {
-        console.log(`[WS] Driver ${driverId} tentou aceitar segunda corrida ${rideId}, mas já foi aceita`)
+        logger.warn('Driver tentou aceitar segunda corrida já aceita', { driverId, rideId })
         return
       }
 
       socket.data.queuedRideId = rideId
       socket.data.queuedRideRiderId = queuedRide.riderId
+      // M5: persiste estado no Redis
+      await setDriverState(driverId, {
+        activeRideId: socket.data.activeRideId as string,
+        activeRideRiderId: socket.data.activeRideRiderId as string,
+        queuedRideId: rideId,
+        queuedRideRiderId: queuedRide.riderId,
+      })
 
       const [driverUserQ, riderUserQ] = await Promise.all([
         userService.findById(driverId),
@@ -128,20 +165,22 @@ export function registerDriverHandlers(socket: Socket): void {
         })
       }
 
-      console.log(`[WS] Driver ${driverId} enfileirou segunda corrida ${rideId}`)
+      logger.info('Driver enfileirou segunda corrida', { driverId, rideId })
       return
     }
 
     // Aceite normal da primeira corrida
     const updated = await rideService.acceptRide(rideId, driverId)
     if (!updated) {
-      console.log(`[WS] Driver ${driverId} tentou aceitar corrida ${rideId}, mas já foi aceita`)
+      logger.warn('Driver tentou aceitar corrida já aceita', { driverId, rideId })
       return
     }
 
     socket.data.activeRideRiderId = updated.riderId
     socket.data.activeRideId = rideId
     socket.data.secondRideAvailableNotified = false
+    // M5: persiste estado no Redis
+    await setDriverState(driverId, { activeRideId: rideId, activeRideRiderId: updated.riderId })
 
     const [driverUser, riderUser] = await Promise.all([
       userService.findById(driverId),
@@ -198,7 +237,7 @@ export function registerDriverHandlers(socket: Socket): void {
       io.to(`user:${updated.riderId}`).emit(SocketEvents.RIDE_ROUTE_UPDATE, pickupRoutePayload)
     }
 
-    console.log(`[WS] Driver ${driverId} aceitou corrida ${rideId}`)
+    logger.info('Driver aceitou corrida', { driverId, rideId })
   })
 
   // Motorista valida OTP digitado pelo passageiro → confirma início da corrida
@@ -208,7 +247,7 @@ export function registerDriverHandlers(socket: Socket): void {
     const started = await rideService.validateAndStartRide(rideId, driverId, otp)
     if (!started) {
       socket.emit(SocketEvents.OTP_INVALID, { rideId })
-      console.log(`[WS] Driver ${driverId} — OTP inválido para corrida ${rideId}`)
+      logger.warn('OTP inválido', { driverId, rideId })
       return
     }
 
@@ -234,7 +273,7 @@ export function registerDriverHandlers(socket: Socket): void {
       io.to(`user:${riderId}`).emit(SocketEvents.RIDE_ROUTE_UPDATE, destRoutePayload)
     }
 
-    console.log(`[WS] Driver ${driverId} — OTP verificado, corrida ${rideId} em andamento`)
+    logger.info('OTP verificado, corrida iniciada', { driverId, rideId })
   })
 
   // Motorista solicita pagamento ao finalizar a corrida
@@ -247,7 +286,7 @@ export function registerDriverHandlers(socket: Socket): void {
     await rideService.update(rideId, { status: 'payment_pending' })
     io.to(`user:${riderId}`).emit(SocketEvents.RIDE_STATUS_UPDATE, { rideId, status: 'payment_pending' })
     socket.emit(SocketEvents.RIDE_STATUS_UPDATE, { rideId, status: 'payment_pending' })
-    console.log(`[WS] Corrida ${rideId} — pagamento pendente`)
+    logger.info('Corrida aguardando pagamento', { rideId })
 
     // 2. paid (simulado após 1s)
     await new Promise(r => setTimeout(r, 1000))
@@ -256,7 +295,7 @@ export function registerDriverHandlers(socket: Socket): void {
 
     io.to(`user:${riderId}`).emit(SocketEvents.RIDE_STATUS_UPDATE, { rideId, status: 'paid', paymentConfirmed: true })
     socket.emit(SocketEvents.RIDE_STATUS_UPDATE, { rideId, status: 'paid', paymentConfirmed: true })
-    console.log(`[WS] Corrida ${rideId} — pagamento confirmado`)
+    logger.info('Pagamento confirmado', { rideId })
 
     if (riderUser?.pushToken) {
       await sendPushNotification({
@@ -274,7 +313,7 @@ export function registerDriverHandlers(socket: Socket): void {
 
     io.to(`user:${riderId}`).emit(SocketEvents.RIDE_STATUS_UPDATE, { rideId, status: 'completed' })
     socket.emit(SocketEvents.RIDE_STATUS_UPDATE, { rideId, status: 'completed' })
-    console.log(`[WS] Corrida ${rideId} — finalizada, driver ${driverId} liberado`)
+    logger.info('Corrida finalizada', { rideId, driverId })
 
     if (riderUser?.pushToken) {
       await sendPushNotification({
@@ -296,6 +335,9 @@ export function registerDriverHandlers(socket: Socket): void {
       socket.data.secondRideAvailableNotified = false
       delete socket.data.queuedRideId
       delete socket.data.queuedRideRiderId
+      // M5: atualiza estado no Redis — remove queuedRide, promove para ativa
+      await setDriverState(driverId, { activeRideId: queuedRideId, activeRideRiderId: queuedRideRiderId })
+      await clearDriverStateField(driverId, 'queuedRideId', 'queuedRideRiderId')
 
       // Calcula rota da localização atual do motorista até o embarque da segunda corrida
       const queuedRide = await rideService.findById(queuedRideId)
@@ -331,13 +373,15 @@ export function registerDriverHandlers(socket: Socket): void {
           })
         }
 
-        console.log(`[WS] Driver ${driverId} — segunda corrida ${queuedRideId} iniciando imediatamente`)
+        logger.info('Segunda corrida iniciando', { driverId, rideId: queuedRideId })
       }
     } else {
       // Sem segunda corrida — libera o motorista
       delete socket.data.activeRideRiderId
       delete socket.data.activeRideId
       socket.data.secondRideAvailableNotified = false
+      // M5: limpa estado do Redis
+      await clearDriverState(driverId)
     }
   })
 
@@ -346,6 +390,6 @@ export function registerDriverHandlers(socket: Socket): void {
     if (!driverId) return
     DriverSocketManager.remove(driverId)
     await removeDriverLocation(driverId)
-    console.log(`[WS] Driver ${driverId} desconectado`)
+    logger.info('Driver desconectado', { driverId })
   })
 }

@@ -8,8 +8,9 @@ import { registerDriverHandlers } from './handlers/driver.handler'
 import { registerUserHandlers } from './handlers/user.handler'
 import { RideService } from '../../modules/ride/ride.service'
 import { UserService } from '../../modules/user/user.service'
+import { logger } from '../logger'
 
-const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_change_in_production'
+const JWT_SECRET = process.env.JWT_SECRET ?? 'dev_secret_change_in_production'
 const rideService = new RideService()
 const userService = new UserService()
 
@@ -18,7 +19,7 @@ let io: Server
 export async function initWebSocket(httpServer: HttpServer): Promise<Server> {
   const pubClient = new Redis(process.env.REDIS_URL!)
   const subClient = pubClient.duplicate()
-  subClient.on('error', (err) => console.error('❌ Redis sub error:', err.message))
+  subClient.on('error', (err) => logger.error('Redis sub error', { error: err.message }))
 
   io = new Server(httpServer, {
     cors: { origin: '*' },
@@ -26,7 +27,7 @@ export async function initWebSocket(httpServer: HttpServer): Promise<Server> {
   })
 
   io.on('connection', async (socket: Socket) => {
-    console.log(`[WS] Connected: ${socket.id}`)
+    logger.debug('WS connected', { socketId: socket.id })
 
     const token = socket.handshake.auth?.token as string | undefined
     if (token) {
@@ -76,7 +77,7 @@ export async function initWebSocket(httpServer: HttpServer): Promise<Server> {
     registerUserHandlers(socket)
 
     socket.on('disconnect', () => {
-      console.log(`[WS] Disconnected: ${socket.id}`)
+      logger.debug('WS disconnected', { socketId: socket.id })
     })
   })
 

@@ -23,6 +23,9 @@ export interface UpdateRideDto {
   completedAt?: Date
   cancelledAt?: Date
   cancelledBy?: 'rider' | 'driver' | 'admin'
+  cancellationFee?: number
+  secondRideNotified?: boolean
+  driverRating?: number
 }
 
 export class RideService {
@@ -35,9 +38,7 @@ export class RideService {
   }
 
   async requestRide(data: CreateRideDto): Promise<{ ride: IRide; driverIds: string[] }> {
-    console.log(`dados da corrida`, data)
     const route = await getRoute(data.origin, data.destination)
-    console.log(`[RideService] Route fetched: distance=${route?.distance}m duration=${route?.duration}s`)
     const fare = route
       ? Math.round((AppConfig.BASE_FARE + route.distance * AppConfig.FARE_PER_KM + route.duration * AppConfig.FARE_PER_MIN) * 100) / 100
       : undefined
@@ -71,6 +72,24 @@ export class RideService {
     if (filters.driverId) query.driverId = filters.driverId
     if (filters.status) query.status = filters.status
     return Ride.find(query).sort({ createdAt: -1 })
+  }
+
+  async findAllPaginated(
+    filters: { riderId?: string; driverId?: string; status?: RideStatus } = {},
+    page = 1,
+    limit = 20,
+  ): Promise<{ rides: IRide[]; total: number; page: number; hasMore: boolean }> {
+    const query: FilterQuery<IRide> = {}
+    if (filters.riderId) query.riderId = filters.riderId
+    if (filters.driverId) query.driverId = filters.driverId
+    if (filters.status) query.status = filters.status
+
+    const skip = (page - 1) * limit
+    const [rides, total] = await Promise.all([
+      Ride.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit),
+      Ride.countDocuments(query),
+    ])
+    return { rides, total, page, hasMore: skip + rides.length < total }
   }
 
   async findById(id: string): Promise<IRide | null> {

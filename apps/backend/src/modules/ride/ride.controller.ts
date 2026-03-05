@@ -16,7 +16,23 @@ export class RideController {
 
   async findAll(req: Request, res: Response): Promise<void> {
     try {
-      const { riderId, driverId, status } = req.query
+      const { riderId, driverId, status, page, limit } = req.query
+
+      // Se page ou limit for informado, usa paginação (L1)
+      if (page !== undefined || limit !== undefined) {
+        const result = await rideService.findAllPaginated(
+          {
+            riderId: riderId as string | undefined,
+            driverId: driverId as string | undefined,
+            status: status as RideStatus | undefined,
+          },
+          Number(page) || 1,
+          Math.min(Number(limit) || 20, 100),
+        )
+        res.json(result)
+        return
+      }
+
       const rides = await rideService.findAll({
         riderId: riderId as string,
         driverId: driverId as string,
@@ -32,7 +48,6 @@ export class RideController {
     try {
       const { driverId } = req.params
       const rides = await rideService.findAll({ driverId })
-      console.log(`[API] GET /rides/driver/${driverId} | found: ${rides.length}`)
       res.json(rides)
     } catch (err: any) {
       res.status(500).json({ message: err.message })
@@ -43,7 +58,6 @@ export class RideController {
     try {
       const { riderId } = req.params
       const rides = await rideService.findAll({ riderId })
-      console.log(`[API] GET /rides/rider/${riderId} | found: ${rides.length}`)
       res.json(rides)
     } catch (err: any) {
       res.status(500).json({ message: err.message })

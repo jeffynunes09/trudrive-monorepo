@@ -11,18 +11,19 @@ export interface RouteResult {
  * Docs: GET /v2/directions/driving-car?api_key=<key>&start=<lng,lat>&end=<lng,lat>
  *
  * Env vars:
- *   OPENAI_ROUTES_SERVICE — base URL  (ex: https://api.openrouteservice.org)
- *   ORS_API_KEY           — API key do ORS
+ *   ORS_BASE_URL — base URL  (ex: https://api.openrouteservice.org)
+ *   ORS_API_KEY  — API key do ORS
  */
 export async function getRoute(
   origin: { lat: number; lng: number },
   destination: { lat: number; lng: number }
 ): Promise<RouteResult | null> {
-  const baseUrl = process.env.OPENAI_ROUTES_SERVICE
+  // Suporta tanto o nome novo (ORS_BASE_URL) quanto o legado (OPENAI_ROUTES_SERVICE)
+  const baseUrl = process.env.ORS_BASE_URL ?? process.env.OPENAI_ROUTES_SERVICE
   const apiKey  = process.env.ORS_API_KEY
 
   if (!baseUrl || !apiKey) {
-    console.warn('[ORS] OPENAI_ROUTES_SERVICE ou ORS_API_KEY não configurado — rota ignorada')
+    console.warn('[ORS] ORS_BASE_URL ou ORS_API_KEY não configurado — rota ignorada')
     return null
   }
 
